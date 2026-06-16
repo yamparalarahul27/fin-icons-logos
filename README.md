@@ -59,9 +59,13 @@ A `quality` state drives the review queue:
 ```
 fin-icons-logos/
 ├── apps/
-│   └── web/public/          # Phase 0 spike output (gitignored, regenerable)
-│       ├── assets.json      #   the manifest
-│       └── logos/<chain>/<address>/<size>.png
+│   └── web/                 # Next.js app (App Router) — admin upload queue
+│       ├── app/admin/       #   review queue + logo upload UI
+│       ├── app/api/admin/   #   assets (GET) + upload (POST) routes
+│       ├── data/overrides.json   # durable curation record (committed)
+│       └── public/          # Phase 0 spike output (gitignored, regenerable)
+│           ├── assets.json  #   the manifest
+│           └── logos/<chain>/<address>/<size>.png
 ├── packages/
 │   ├── shared/              # canonical Asset/LogoSet types, chain registry, resolver
 │   └── ingestion/           # source pullers, sharp normalizer, spike script
@@ -86,6 +90,27 @@ Output lands in `apps/web/public/`:
 - `logos/<chain>/<address>/<size>.png` — normalized images.
 
 Both are **gitignored** — they're build artifacts; regenerate with `pnpm ingest`.
+
+### Admin upload UI
+
+A Next.js app at `apps/web` provides the **review & curation queue**:
+
+```bash
+pnpm ingest                       # populate assets.json first
+pnpm --filter @fin/web dev        # http://localhost:3000/admin
+```
+
+The `/admin` queue lists every asset sorted worst-quality-first (`missing` →
+`needs_review` → `ok` → `curated`). Drop or pick a logo on any card to upload an
+**override**: it's normalized to the canonical 32/64/128/256 PNGs with `sharp`,
+written under `public/overrides/<chain>/<address>/`, and recorded in
+`apps/web/data/overrides.json`. Per the override-wins model, this only sets
+`logo.override` and flips `quality` to `curated` — `logo.auto` is untouched, so
+re-running `pnpm ingest` refreshes the source logo without clobbering curation.
+
+> Uploaded image bytes live in the (gitignored) `public/overrides/` tree as a
+> Phase-1 stand-in. Phase 2 moves them to R2/CDN with metadata in Postgres; the
+> committed `overrides.json` is the durable curation record in the meantime.
 
 ---
 
