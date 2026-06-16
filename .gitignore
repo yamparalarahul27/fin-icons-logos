@@ -9,3 +9,13 @@ dist/
 # Phase 0 spike output — regenerate with `pnpm ingest`
 apps/web/public/logos/
 apps/web/public/assets.json
+
+# Next.js
+apps/web/.next/
+apps/web/next-env.d.ts
+apps/web/out/
+
+# Admin-uploaded override images. The durable curation record is
+# apps/web/data/overrides.json (committed); the binaries are regenerable from it
+# once R2/CDN storage lands (Phase 2).
+apps/web/public/overrides/

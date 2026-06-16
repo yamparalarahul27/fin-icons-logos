@@ -59,9 +59,13 @@ A `quality` state drives the review queue:
 ```
 fin-icons-logos/
 ├── apps/
-│   └── web/public/          # Phase 0 spike output (gitignored, regenerable)
-│       ├── assets.json      #   the manifest
-│       └── logos/<chain>/<address>/<size>.png
+│   └── web/                 # Next.js app (App Router) — admin upload queue
+│       ├── app/admin/       #   review queue + logo upload UI
+│       ├── app/api/admin/   #   assets (GET) + upload (POST) routes
+│       ├── data/overrides.json   # durable curation record (committed)
+│       └── public/          # Phase 0 spike output (gitignored, regenerable)
+│           ├── assets.json  #   the manifest
+│           └── logos/<chain>/<address>/<size>.png
 ├── packages/
 │   ├── shared/              # canonical Asset/LogoSet types, chain registry, resolver
 │   └── ingestion/           # source pullers, sharp normalizer, spike script
@@ -86,6 +90,49 @@ Output lands in `apps/web/public/`:
 - `logos/<chain>/<address>/<size>.png` — normalized images.
 
 Both are **gitignored** — they're build artifacts; regenerate with `pnpm ingest`.
+
+### Admin upload UI
+
+A Next.js app at `apps/web` provides the **review & curation queue**:
+
+```bash
+pnpm ingest                       # populate assets.json first
+pnpm --filter @fin/web dev        # http://localhost:3000/admin
+```
+
+The `/admin` queue lists every asset sorted worst-quality-first (`missing` →
+`needs_review` → `ok` → `curated`). Drop or pick a logo on any card to upload an
+**override**: it's normalized to the canonical 32/64/128/256 PNGs with `sharp`,
+written under `public/overrides/<chain>/<address>/`, and recorded in
+`apps/web/data/overrides.json`. Per the override-wins model, this only sets
+`logo.override` and flips `quality` to `curated` — `logo.auto` is untouched, so
+re-running `pnpm ingest` refreshes the source logo without clobbering curation.
+
+### Storage backends (R2 + Supabase)
+
+The admin write path has two pluggable backends, selected by env vars at
+runtime. With **none** set, everything falls back to local disk so the app runs
+with zero cloud credentials:
+
+| Concern | Cloud backend | Env vars | Local fallback |
+|---|---|---|---|
+| Logo image bytes | **Cloudflare R2** (S3-compatible, zero egress) | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL` | `public/overrides/` served by `/overrides/[...]` |
+| Override records | **Supabase Postgres** (`logo_overrides`) | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | `data/overrides.json` (committed) |
+
+R2 holds the bytes because this is a read-heavy image CDN and R2 has **zero
+egress fees**; Supabase/Postgres holds the queryable records. See
+[`apps/web/.env.example`](./apps/web/.env.example) for the full list and
+[`supabase/migrations/0001_init.sql`](./supabase/migrations/0001_init.sql) for
+the schema (`PLAN.md §3` `asset` table + `logo_overrides`). Apply it with
+`supabase db push` or the Supabase SQL editor.
+
+```bash
+cp apps/web/.env.example apps/web/.env.local   # then fill in R2 + Supabase
+```
+
+> Free to launch: R2 (10 GB + zero egress) + Supabase free Postgres. Until the
+> env is configured, override images sit in the (gitignored) `public/overrides/`
+> tree and records in the committed `overrides.json`.
 
 ---
 
