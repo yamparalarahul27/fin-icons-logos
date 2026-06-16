@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.turbo/
+*.tsbuildinfo
+.DS_Store
+.env
+.env.local
+
+# Phase 0 spike output — regenerate with `pnpm ingest`
+apps/web/public/logos/
+apps/web/public/assets.json
