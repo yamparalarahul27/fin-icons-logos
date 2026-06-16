@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import sharp from "sharp";
-import { normalizeLogo, type RawLogo } from "@fin/ingestion/normalize";
-import { CHAINS, normalizeAddress } from "@fin/shared";
-import { OVERRIDES_DIR, OVERRIDES_PUBLIC_BASE, saveOverride } from "@/lib/manifest";
+import { renderLogo, type RawLogo } from "@fin/ingestion/normalize";
+import { CHAINS, normalizeAddress, type LogoSet } from "@fin/shared";
+import { getStorage } from "@/lib/storage";
+import { getOverrideRepo } from "@/lib/overrides-repo";
 
 // sharp is a native module — force the Node runtime, not the edge runtime.
 export const runtime = "nodejs";
@@ -57,15 +58,28 @@ export async function POST(req: Request) {
   const address = normalizeAddress(rawAddress, info.evm);
   const id = `${chain}:${address}`;
 
+  // Render to the canonical sizes, then persist each to the configured storage.
   const raw: RawLogo = { bytes, width: meta.width, height: meta.height };
-  const logo = await normalizeLogo(raw, {
-    outDir: OVERRIDES_DIR,
-    publicBase: OVERRIDES_PUBLIC_BASE,
-    chain,
-    address,
-  });
+  const rendered = await renderLogo(raw);
+  const storage = getStorage();
+  await Promise.all(
+    rendered.map(({ size, png }) =>
+      storage.put(`${chain}/${address}/${size}.png`, png, "image/png"),
+    ),
+  );
 
-  await saveOverride(id, logo);
+  const url = (size: number) => storage.urlFor(`${chain}/${address}/${size}.png`);
+  const logo: LogoSet = {
+    png256: url(256),
+    png128: url(128),
+    png64: url(64),
+    png32: url(32),
+    svg: null,
+    sourceWidth: meta.width,
+    sourceHeight: meta.height,
+  };
 
-  return NextResponse.json({ id, quality: "curated", logo });
+  await getOverrideRepo().set(id, logo);
+
+  return NextResponse.json({ id, quality: "curated", logo, storage: storage.kind });
 }

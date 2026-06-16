@@ -2,8 +2,8 @@
 const nextConfig = {
   // Workspace packages ship raw TypeScript (no build step); let Next compile them.
   transpilePackages: ["@fin/shared", "@fin/ingestion"],
-  // sharp is a native module — keep it out of the bundle and require it at runtime.
-  serverExternalPackages: ["sharp"],
+  // Native / heavy server-only deps: keep them out of the bundle, require at runtime.
+  serverExternalPackages: ["sharp", "@aws-sdk/client-s3", "@supabase/supabase-js"],
   webpack: (config) => {
     // The shared/ingestion packages are ESM TypeScript that import with `.js`
     // specifiers (e.g. `./asset.js`). Teach webpack to resolve those to `.ts`.

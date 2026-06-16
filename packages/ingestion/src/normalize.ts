@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
-import { LOGO_SIZES, type LogoSet } from "@fin/shared";
+import { LOGO_SIZES, type LogoSet, type LogoSize } from "@fin/shared";
 
 /** A logo source image fetched as raw bytes, before normalization. */
 export interface RawLogo {
@@ -26,10 +26,30 @@ export async function fetchLogo(url: string): Promise<RawLogo | null> {
 }
 
 /**
- * Re-encode a source logo to the canonical square PNG sizes, transparent
- * background, `contain` fit so non-square art is letterboxed rather than
- * cropped. Writes to <outDir>/<chain>/<address>/<size>.png and returns the
- * public URL set (paths relative to the web public root).
+ * Re-encode a source logo to the canonical square PNG sizes in memory:
+ * transparent background, `contain` fit so non-square art is letterboxed rather
+ * than cropped. Returns the encoded bytes per size so callers can persist them
+ * wherever they like (local disk, R2, ...).
+ */
+export async function renderLogo(raw: RawLogo): Promise<{ size: LogoSize; png: Buffer }[]> {
+  return Promise.all(
+    LOGO_SIZES.map(async (size) => ({
+      size,
+      png: await sharp(raw.bytes)
+        .resize(size, size, {
+          fit: "contain",
+          background: { r: 0, g: 0, b: 0, alpha: 0 },
+        })
+        .png()
+        .toBuffer(),
+    })),
+  );
+}
+
+/**
+ * Render a source logo to the canonical sizes and write them to
+ * <outDir>/<chain>/<address>/<size>.png, returning the public URL set (paths
+ * relative to the web public root).
  */
 export async function normalizeLogo(
   raw: RawLogo,
@@ -38,16 +58,8 @@ export async function normalizeLogo(
   const dir = path.join(opts.outDir, opts.chain, opts.address);
   await mkdir(dir, { recursive: true });
 
-  for (const size of LOGO_SIZES) {
-    const png = await sharp(raw.bytes)
-      .resize(size, size, {
-        fit: "contain",
-        background: { r: 0, g: 0, b: 0, alpha: 0 },
-      })
-      .png()
-      .toBuffer();
-    await writeFile(path.join(dir, `${size}.png`), png);
-  }
+  const rendered = await renderLogo(raw);
+  await Promise.all(rendered.map(({ size, png }) => writeFile(path.join(dir, `${size}.png`), png)));
 
   const base = `${opts.publicBase}/${opts.chain}/${opts.address}`;
   return {

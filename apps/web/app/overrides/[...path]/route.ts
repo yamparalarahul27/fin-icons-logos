@@ -2,7 +2,7 @@ import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
-import { OVERRIDES_DIR } from "@/lib/manifest";
+import { OVERRIDES_DIR } from "@/lib/paths";
 
 // Override images are written at runtime, so `next start` won't serve them from
 // public/ (that's snapshotted at build). Stream them from disk instead. This is

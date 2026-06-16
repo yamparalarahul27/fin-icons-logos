@@ -108,9 +108,31 @@ written under `public/overrides/<chain>/<address>/`, and recorded in
 `logo.override` and flips `quality` to `curated` — `logo.auto` is untouched, so
 re-running `pnpm ingest` refreshes the source logo without clobbering curation.
 
-> Uploaded image bytes live in the (gitignored) `public/overrides/` tree as a
-> Phase-1 stand-in. Phase 2 moves them to R2/CDN with metadata in Postgres; the
-> committed `overrides.json` is the durable curation record in the meantime.
+### Storage backends (R2 + Supabase)
+
+The admin write path has two pluggable backends, selected by env vars at
+runtime. With **none** set, everything falls back to local disk so the app runs
+with zero cloud credentials:
+
+| Concern | Cloud backend | Env vars | Local fallback |
+|---|---|---|---|
+| Logo image bytes | **Cloudflare R2** (S3-compatible, zero egress) | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL` | `public/overrides/` served by `/overrides/[...]` |
+| Override records | **Supabase Postgres** (`logo_overrides`) | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | `data/overrides.json` (committed) |
+
+R2 holds the bytes because this is a read-heavy image CDN and R2 has **zero
+egress fees**; Supabase/Postgres holds the queryable records. See
+[`apps/web/.env.example`](./apps/web/.env.example) for the full list and
+[`supabase/migrations/0001_init.sql`](./supabase/migrations/0001_init.sql) for
+the schema (`PLAN.md §3` `asset` table + `logo_overrides`). Apply it with
+`supabase db push` or the Supabase SQL editor.
+
+```bash
+cp apps/web/.env.example apps/web/.env.local   # then fill in R2 + Supabase
+```
+
+> Free to launch: R2 (10 GB + zero egress) + Supabase free Postgres. Until the
+> env is configured, override images sit in the (gitignored) `public/overrides/`
+> tree and records in the committed `overrides.json`.
 
 ---
 

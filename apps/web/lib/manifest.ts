@@ -1,35 +1,19 @@
 /**
- * Server-side store for the admin review queue.
- *
- * Reads the Phase-0 ingestion manifest (`public/assets.json`) and merges in any
- * admin-uploaded overrides. Overrides live in a sidecar (`data/overrides.json` +
- * `public/overrides/...`) that ingestion never touches, so re-running `pnpm
- * ingest` can refresh `logo.auto` without ever clobbering manual curation —
- * exactly the override-wins model from the README.
+ * Builds the admin review queue: reads the Phase-0 ingestion manifest
+ * (`public/assets.json`) and layers admin overrides on top. Overrides come from
+ * the pluggable repo (Supabase in prod, JSON sidecar locally) and ingestion
+ * never touches them, so re-running `pnpm ingest` refreshes `logo.auto` without
+ * clobbering manual curation — the override-wins model from the README.
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { readFile } from "node:fs/promises";
 import {
   resolveLogo,
   type Asset,
   type AssetsManifest,
   type LogoQuality,
-  type LogoSet,
 } from "@fin/shared";
-
-/** Next runs with cwd = apps/web. */
-const ROOT = process.cwd();
-const PUBLIC_DIR = path.join(ROOT, "public");
-
-export const MANIFEST_PATH = path.join(PUBLIC_DIR, "assets.json");
-
-/** Where normalized override PNGs are written, and the URL they're served from. */
-export const OVERRIDES_DIR = path.join(PUBLIC_DIR, "overrides");
-export const OVERRIDES_PUBLIC_BASE = "/overrides";
-
-/** Durable curation metadata — survives `pnpm ingest`, committed to git. */
-const DATA_DIR = path.join(ROOT, "data");
-const OVERRIDES_JSON = path.join(DATA_DIR, "overrides.json");
+import { MANIFEST_PATH } from "./paths";
+import { getOverrideRepo } from "./overrides-repo";
 
 /** Review-queue priority: worst logos float to the top. */
 const QUEUE_RANK: Record<LogoQuality, number> = {
@@ -39,28 +23,6 @@ const QUEUE_RANK: Record<LogoQuality, number> = {
   curated: 3,
 };
 
-export type OverrideStore = Record<string, LogoSet>;
-
-async function readJson<T>(file: string, fallback: T): Promise<T> {
-  try {
-    return JSON.parse(await readFile(file, "utf8")) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-export async function readOverrides(): Promise<OverrideStore> {
-  return readJson<OverrideStore>(OVERRIDES_JSON, {});
-}
-
-/** Persist a single asset's override logo set, merging into the sidecar store. */
-export async function saveOverride(id: string, logo: LogoSet): Promise<void> {
-  const store = await readOverrides();
-  store[id] = logo;
-  await mkdir(DATA_DIR, { recursive: true });
-  await writeFile(OVERRIDES_JSON, JSON.stringify(store, null, 2));
-}
-
 export interface QueueManifest {
   generatedAt: string | null;
   sources: string[];
@@ -68,14 +30,19 @@ export interface QueueManifest {
   assets: Asset[];
 }
 
-/**
- * Load the ingestion manifest and layer admin overrides on top. Any asset with
- * an override is marked `curated`. Result is sorted worst-quality-first so the
- * upload queue surfaces the logos that need attention.
- */
+async function readManifest(): Promise<AssetsManifest | null> {
+  try {
+    return JSON.parse(await readFile(MANIFEST_PATH, "utf8")) as AssetsManifest;
+  } catch {
+    return null;
+  }
+}
+
 export async function loadQueue(): Promise<QueueManifest> {
-  const manifest = await readJson<AssetsManifest | null>(MANIFEST_PATH, null);
-  const overrides = await readOverrides();
+  const [manifest, overrides] = await Promise.all([
+    readManifest(),
+    getOverrideRepo().getAll(),
+  ]);
   const base = manifest?.assets ?? [];
 
   const assets: Asset[] = base.map((asset) => {
