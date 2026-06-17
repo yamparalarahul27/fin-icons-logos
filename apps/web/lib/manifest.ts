@@ -11,6 +11,7 @@ import {
   type Asset,
   type AssetsManifest,
   type LogoQuality,
+  type LogoSet,
 } from "@fin/shared";
 import { MANIFEST_PATH } from "./paths";
 import { getOverrideRepo } from "./overrides-repo";
@@ -68,4 +69,48 @@ export async function loadQueue(): Promise<QueueManifest> {
 /** The logo URL the public side would serve for an asset (override wins). */
 export function previewUrl(asset: Asset): string | null {
   return resolveLogo(asset)?.png128 ?? null;
+}
+
+/** A public-facing asset: metadata + the single resolved (override-wins) logo set. */
+export interface CatalogAsset {
+  id: string;
+  chain: string;
+  address: string;
+  symbol: string;
+  name: string;
+  verified: boolean;
+  logo: LogoSet;
+}
+
+/**
+ * The public explorer catalog: every asset that has a resolvable logo, with
+ * overrides already applied. Sorted for browsing — native coins first, then
+ * verified, then alphabetically by symbol. Assets with no logo are dropped.
+ */
+export async function loadCatalog(): Promise<CatalogAsset[]> {
+  const { assets } = await loadQueue();
+  const catalog: CatalogAsset[] = [];
+  for (const a of assets) {
+    const logo = resolveLogo(a);
+    if (!logo) continue;
+    catalog.push({
+      id: a.id,
+      chain: a.chain,
+      address: a.address,
+      symbol: a.symbol,
+      name: a.name,
+      verified: a.verified,
+      logo,
+    });
+  }
+
+  catalog.sort((a, b) => {
+    const an = a.address === "native" ? 0 : 1;
+    const bn = b.address === "native" ? 0 : 1;
+    if (an !== bn) return an - bn;
+    if (a.verified !== b.verified) return a.verified ? -1 : 1;
+    return a.symbol.localeCompare(b.symbol);
+  });
+
+  return catalog;
 }
