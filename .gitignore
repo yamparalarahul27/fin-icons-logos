@@ -5,10 +5,13 @@ dist/
 .DS_Store
 .env
 .env.local
+.wrangler/
 
-# Phase 0 spike output — regenerate with `pnpm ingest`
+# Local logo PNGs — regenerate with `pnpm ingest`. In prod these live on R2/CDN
+# (cdn.defitriangle.xyz/logos/...), so the local tree is only the no-creds fallback.
 apps/web/public/logos/
-apps/web/public/assets.json
+# NOTE: assets.json (the manifest) IS committed — it's the deployed site's data
+# source until Supabase lands. Logo image URLs in it point at the CDN.
 
 # Next.js
 apps/web/.next/

@@ -22,7 +22,8 @@ import {
   type LogoQuality,
 } from "@fin/shared";
 import { fetchChainTokens, type SourceToken } from "./sources/trustwallet.js";
-import { fetchLogo, normalizeLogo } from "./normalize.js";
+import { fetchLogo } from "./normalize.js";
+import { getLogoSink, loadEnv, type LogoSink } from "./storage.js";
 
 /** Per-chain token caps, tuned to land near ~200 total. */
 const CHAIN_LIMITS: Record<ChainName, number> = {
@@ -57,7 +58,7 @@ async function pool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>
   return results;
 }
 
-async function buildAsset(token: SourceToken, now: string): Promise<Asset> {
+async function buildAsset(token: SourceToken, sink: LogoSink, now: string): Promise<Asset> {
   const info = CHAINS[token.chain]!;
   const address = normalizeAddress(token.address, info.evm);
   const id = `${token.chain}:${address}`;
@@ -69,12 +70,7 @@ async function buildAsset(token: SourceToken, now: string): Promise<Asset> {
   if (raw) {
     const longest = Math.max(raw.width, raw.height);
     quality = longest >= MIN_QUALITY_PX ? "ok" : "needs_review";
-    auto = await normalizeLogo(raw, {
-      outDir: LOGOS_DIR,
-      publicBase: PUBLIC_BASE,
-      chain: token.chain,
-      address,
-    });
+    auto = await sink.put(token.chain, address, raw);
   }
 
   return {
@@ -100,20 +96,30 @@ async function buildAsset(token: SourceToken, now: string): Promise<Asset> {
 async function main() {
   const now = new Date().toISOString();
 
+  loadEnv(REPO_ROOT);
+  const sink = getLogoSink({ outDir: LOGOS_DIR, publicBase: PUBLIC_BASE });
+  console.log(
+    sink.kind === "r2"
+      ? `Logo sink: R2 → ${process.env.R2_PUBLIC_BASE_URL}`
+      : "Logo sink: local public/ (no R2 creds — set apps/web/.env.local to upload)",
+  );
+
   console.log("Fetching token lists from TrustWallet…");
   const chains = Object.keys(CHAIN_LIMITS) as ChainName[];
   const perChain = await pool(chains, chains.length, (c) =>
-    fetchChainTokens(c, CHAIN_LIMITS[c]),
+    fetchChainTokens(c, CHAIN_LIMITS[c]!),
   );
   const tokens = perChain.flat();
   console.log(`Collected ${tokens.length} candidate tokens across ${chains.length} chains.`);
 
-  // Fresh output each run so deletions upstream don't leave stale files.
-  await rm(LOGOS_DIR, { recursive: true, force: true });
   await mkdir(PUBLIC_DIR, { recursive: true });
+  // Fresh local output each run so deletions upstream don't leave stale files.
+  if (sink.kind === "local") {
+    await rm(LOGOS_DIR, { recursive: true, force: true });
+  }
 
   console.log(`Fetching + normalizing logos (concurrency ${CONCURRENCY})…`);
-  const assets = await pool(tokens, CONCURRENCY, (t) => buildAsset(t, now));
+  const assets = await pool(tokens, CONCURRENCY, (t) => buildAsset(t, sink, now));
 
   const withLogo = assets.filter((a) => a.quality !== "missing");
   const manifest: AssetsManifest = {
