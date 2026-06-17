@@ -22,6 +22,7 @@ import {
   type LogoQuality,
 } from "@fin/shared";
 import { fetchChainTokens, type SourceToken } from "./sources/trustwallet.js";
+import { fetchXStocks } from "./sources/xstocks.js";
 import { fetchLogo } from "./normalize.js";
 import { getLogoSink, loadEnv, type LogoSink } from "./storage.js";
 
@@ -82,10 +83,10 @@ async function buildAsset(token: SourceToken, sink: LogoSink, now: string): Prom
     decimals: token.decimals,
     coingeckoId: null,
     rank: null,
-    source: "trustwallet",
+    source: token.source ?? "trustwallet",
     sourceUrl: token.logoUrl,
-    // Native L1 coins are inherently trustworthy; treat as verified.
-    verified: address === NATIVE_ADDRESS,
+    // Issuer-curated sources self-verify; otherwise native L1 coins are trusted.
+    verified: token.verified ?? address === NATIVE_ADDRESS,
     quality,
     logo: { auto, override: null },
     firstSeenAt: now,
@@ -109,8 +110,14 @@ async function main() {
   const perChain = await pool(chains, chains.length, (c) =>
     fetchChainTokens(c, CHAIN_LIMITS[c]!),
   );
-  const tokens = perChain.flat();
-  console.log(`Collected ${tokens.length} candidate tokens across ${chains.length} chains.`);
+  console.log("Fetching tokenized equities from xStocks…");
+  const xstocks = await fetchXStocks();
+
+  const tokens = [...perChain.flat(), ...xstocks];
+  console.log(
+    `Collected ${tokens.length} candidate tokens ` +
+      `(${tokens.length - xstocks.length} crypto + ${xstocks.length} xStocks).`,
+  );
 
   await mkdir(PUBLIC_DIR, { recursive: true });
   // Fresh local output each run so deletions upstream don't leave stale files.
@@ -124,7 +131,7 @@ async function main() {
   const withLogo = assets.filter((a) => a.quality !== "missing");
   const manifest: AssetsManifest = {
     generatedAt: now,
-    sources: ["trustwallet"],
+    sources: ["trustwallet", "xstocks"],
     count: withLogo.length,
     assets: withLogo,
   };

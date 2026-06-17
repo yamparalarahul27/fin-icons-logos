@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CHAINS } from "@fin/shared";
 import type { CatalogAsset } from "../lib/manifest";
@@ -70,6 +71,7 @@ function AssetCard({ asset }: { asset: CatalogAsset }) {
   const [copied, setCopied] = useState(false);
   const chainLabel = CHAINS[asset.chain as keyof typeof CHAINS]?.label ?? asset.chain;
   const url = asset.logo.png256;
+  const href = `/asset/${asset.chain}/${encodeURIComponent(asset.address)}`;
 
   async function copy() {
     try {
@@ -82,38 +84,46 @@ function AssetCard({ asset }: { asset: CatalogAsset }) {
   }
 
   return (
-    <li className="group flex items-center gap-3 rounded-xl border border-neutral-800 bg-neutral-900/50 p-3 transition hover:border-neutral-600">
-      <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[repeating-conic-gradient(#262626_0_25%,#1a1a1a_0_50%)] bg-[length:14px_14px]">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={asset.logo.png64}
-          alt={asset.symbol}
-          loading="lazy"
-          className="size-10 object-contain"
-        />
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <span className="truncate font-medium">{asset.symbol}</span>
-          {asset.verified && (
-            <svg className="size-3.5 shrink-0 text-sky-400" viewBox="0 0 20 20" fill="currentColor" aria-label="verified">
-              <path
-                fillRule="evenodd"
-                d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.7-9.3a1 1 0 0 0-1.4-1.4L9 10.6 7.7 9.3a1 1 0 0 0-1.4 1.4l2 2a1 1 0 0 0 1.4 0l4-4Z"
-                clipRule="evenodd"
-              />
-            </svg>
-          )}
+    <li className="group relative">
+      <Link
+        href={href}
+        className="flex items-center gap-3 rounded-xl border border-neutral-800 bg-neutral-900/50 p-3 pr-24 transition-colors hover:border-neutral-600 active:scale-[0.99]"
+        style={{ transitionProperty: "border-color, scale" }}
+      >
+        <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[repeating-conic-gradient(#262626_0_25%,#1a1a1a_0_50%)] bg-[length:14px_14px]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={asset.logo.png64}
+            alt={asset.symbol}
+            loading="lazy"
+            className="size-10 object-contain outline outline-1 -outline-offset-1 outline-white/10"
+          />
         </div>
-        <p className="truncate text-sm text-neutral-400">{asset.name}</p>
-        <p className="truncate text-xs text-neutral-600">{chainLabel}</p>
-      </div>
 
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className="truncate font-medium">{asset.symbol}</span>
+            {asset.verified && (
+              <svg className="size-3.5 shrink-0 text-sky-400" viewBox="0 0 20 20" fill="currentColor" aria-label="verified">
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.7-9.3a1 1 0 0 0-1.4-1.4L9 10.6 7.7 9.3a1 1 0 0 0-1.4 1.4l2 2a1 1 0 0 0 1.4 0l4-4Z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            )}
+          </div>
+          <p className="truncate text-sm text-neutral-400">{asset.name}</p>
+          <p className="truncate text-xs text-neutral-600">{chainLabel}</p>
+        </div>
+      </Link>
+
+      {/* Sibling of the Link (not nested) so clicking Copy never navigates. */}
       <button
         onClick={copy}
         title={url}
-        className="shrink-0 rounded-lg border border-neutral-700 px-2.5 py-1.5 text-xs text-neutral-300 opacity-0 transition hover:border-neutral-500 hover:text-neutral-100 group-hover:opacity-100 focus:opacity-100"
+        className="absolute right-3 top-1/2 grid h-10 -translate-y-1/2 place-items-center rounded-lg border border-neutral-700 px-2.5 text-xs text-neutral-300 opacity-0 transition-colors hover:border-neutral-500 hover:text-neutral-100 focus-visible:opacity-100 group-hover:opacity-100 active:scale-[0.96]"
+        style={{ transitionProperty: "border-color, color, scale, opacity" }}
       >
         {copied ? "Copied ✓" : "Copy URL"}
       </button>

@@ -16,8 +16,12 @@ export interface SourceToken {
   symbol: string;
   name: string;
   decimals: number | null;
-  /** raw.githubusercontent.com URL to the source PNG. */
+  /** URL to the source PNG (raw.githubusercontent.com for TrustWallet). */
   logoUrl: string;
+  /** Which source produced this token. Defaults to "trustwallet" in the builder. */
+  source?: string;
+  /** Force-verify (issuer-curated lists). Defaults to native-coin-only. */
+  verified?: boolean;
 }
 
 interface TokenListEntry {
