@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { Check, Copy, LinkSimple } from "@phosphor-icons/react";
 import { CHAINS } from "@fin/shared";
 import type { CatalogAsset } from "../lib/manifest";
 
@@ -123,18 +124,36 @@ function ChainChip({
 }
 
 function AssetCard({ asset }: { asset: CatalogAsset }) {
-  const [copied, setCopied] = useState(false);
+  const [urlCopied, setUrlCopied] = useState(false);
+  const [imgState, setImgState] = useState<"idle" | "busy" | "done" | "error">("idle");
   const chainLabel = CHAINS[asset.chain as keyof typeof CHAINS]?.label ?? asset.chain;
   const url = asset.logo.png256;
   const href = `/asset/${asset.chain}/${encodeURIComponent(asset.address)}`;
 
-  async function copy() {
+  async function copyUrl() {
     try {
       await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1200);
+      setUrlCopied(true);
+      setTimeout(() => setUrlCopied(false), 1200);
     } catch {
       /* clipboard unavailable */
+    }
+  }
+
+  async function copyImage() {
+    setImgState("busy");
+    try {
+      const res = await fetch(
+        `/api/image?chain=${encodeURIComponent(asset.chain)}&address=${encodeURIComponent(asset.address)}&size=256`,
+      );
+      if (!res.ok) throw new Error("fetch failed");
+      const blob = await res.blob();
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type || "image/png"]: blob })]);
+      setImgState("done");
+    } catch {
+      setImgState("error");
+    } finally {
+      setTimeout(() => setImgState("idle"), 1400);
     }
   }
 
@@ -142,7 +161,7 @@ function AssetCard({ asset }: { asset: CatalogAsset }) {
     <li className="group relative">
       <Link
         href={href}
-        className="flex items-center gap-3 rounded-xl border border-neutral-800 bg-neutral-900/50 p-3 pr-24 transition-colors hover:border-neutral-600 active:scale-[0.99]"
+        className="flex items-center gap-3 rounded-xl border border-neutral-800 bg-neutral-900/50 p-3 pr-32 transition-colors hover:border-neutral-600 active:scale-[0.99]"
         style={{ transitionProperty: "border-color, scale" }}
       >
         <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[repeating-conic-gradient(#262626_0_25%,#1a1a1a_0_50%)] bg-[length:14px_14px]">
@@ -173,15 +192,40 @@ function AssetCard({ asset }: { asset: CatalogAsset }) {
         </div>
       </Link>
 
-      {/* Sibling of the Link (not nested) so clicking Copy never navigates. */}
-      <button
-        onClick={copy}
-        title={url}
-        className="absolute right-3 top-1/2 grid h-10 -translate-y-1/2 place-items-center rounded-lg border border-neutral-700 px-2.5 text-xs text-neutral-300 opacity-0 transition-colors hover:border-neutral-500 hover:text-neutral-100 focus-visible:opacity-100 group-hover:opacity-100 active:scale-[0.96]"
-        style={{ transitionProperty: "border-color, color, scale, opacity" }}
-      >
-        {copied ? "Copied ✓" : "Copy URL"}
-      </button>
+      {/* Siblings of the Link (not nested) so clicking an action never navigates. */}
+      <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+        <button
+          onClick={copyUrl}
+          aria-label="Copy logo URL"
+          title="Copy URL"
+          className="grid h-9 w-9 place-items-center rounded-lg border border-neutral-700 text-neutral-300 transition-[border-color,color,scale] hover:border-neutral-500 hover:text-neutral-100 active:scale-[0.94]"
+        >
+          {urlCopied ? (
+            <Check size={16} weight="bold" className="text-emerald-400" />
+          ) : (
+            <LinkSimple size={16} />
+          )}
+        </button>
+        <button
+          onClick={copyImage}
+          disabled={imgState === "busy"}
+          aria-label="Copy logo image to clipboard"
+          title="Copy image"
+          className="flex h-9 items-center gap-1.5 rounded-lg border border-neutral-700 px-2.5 text-xs text-neutral-300 transition-[border-color,color,scale] hover:border-neutral-500 hover:text-neutral-100 active:scale-[0.94] disabled:opacity-60"
+        >
+          {imgState === "done" ? (
+            <>
+              <Check size={14} weight="bold" className="text-emerald-400" /> Copied
+            </>
+          ) : imgState === "error" ? (
+            "Failed"
+          ) : (
+            <>
+              <Copy size={14} /> {imgState === "busy" ? "…" : "Copy"}
+            </>
+          )}
+        </button>
+      </div>
     </li>
   );
 }
