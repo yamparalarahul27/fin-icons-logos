@@ -4,6 +4,7 @@ import { renderLogo, type RawLogo } from "@fin/ingestion/normalize";
 import { CHAINS, normalizeAddress, type LogoSet } from "@fin/shared";
 import { getStorage } from "@/lib/storage";
 import { getOverrideRepo } from "@/lib/overrides-repo";
+import { requireAdmin } from "@/lib/admin-guard";
 
 // sharp is a native module — force the Node runtime, not the edge runtime.
 export const runtime = "nodejs";
@@ -12,6 +13,9 @@ const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 const MIN_SOURCE_PX = 128; // matches the ingestion quality threshold
 
 export async function POST(req: Request) {
+  const denied = await requireAdmin();
+  if (denied) return denied;
+
   let form: FormData;
   try {
     form = await req.formData();
