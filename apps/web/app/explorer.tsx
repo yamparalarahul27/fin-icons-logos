@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { Check, Copy, LinkSimple } from "@phosphor-icons/react";
+import { useEffect, useMemo, useState } from "react";
 import { CHAINS, kindOf, type AssetKind } from "@fin/shared";
 import type { CatalogAsset } from "../lib/manifest";
+
+/** How many cards to show before "Load more". */
+const PAGE_SIZE = 60;
 
 const chainLabelOf = (chain: string) =>
   CHAINS[chain as keyof typeof CHAINS]?.label ?? chain;
@@ -21,6 +23,7 @@ export function Explorer({ assets }: { assets: CatalogAsset[] }) {
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<KindFilter>("all");
   const [chain, setChain] = useState<string>("all");
+  const [visible, setVisible] = useState(PAGE_SIZE);
 
   // Category counts for the top-level switcher (only kinds that are present).
   const kinds = useMemo(() => {
@@ -61,6 +64,11 @@ export function Explorer({ assets }: { assets: CatalogAsset[] }) {
       );
     });
   }, [assets, query, kind, chain, showChains]);
+
+  // Any change to the active filters resets the page back to the first batch.
+  useEffect(() => {
+    setVisible(PAGE_SIZE);
+  }, [query, kind, chain]);
 
   function selectKind(k: KindFilter) {
     setKind(k);
@@ -127,14 +135,31 @@ export function Explorer({ assets }: { assets: CatalogAsset[] }) {
 
       {results.length === 0 ? (
         <p className="py-16 text-center text-sm text-neutral-500">
-          {filtered ? "No assets match your filters." : "No assets."}
+          {filtered
+            ? "No logos match your filters. Try a different symbol or chain."
+            : "No logos yet."}
         </p>
       ) : (
-        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {results.map((asset) => (
-            <AssetCard key={asset.id} asset={asset} />
-          ))}
-        </ul>
+        <>
+          {/* Continuous shelves: column-gap is 0 so each card's base ledge
+              abuts its neighbour and reads as one shelf per row. */}
+          <ul className="grid grid-cols-3 gap-y-8 sm:grid-cols-4 lg:grid-cols-6">
+            {results.slice(0, visible).map((asset) => (
+              <AssetCard key={asset.id} asset={asset} />
+            ))}
+          </ul>
+
+          {visible < results.length && (
+            <div className="mt-10 flex justify-center">
+              <button
+                onClick={() => setVisible((v) => v + PAGE_SIZE)}
+                className="rounded-full border border-neutral-700 px-5 py-2 text-sm text-neutral-300 transition-[border-color,color,scale] hover:border-neutral-500 hover:text-neutral-100 active:scale-[0.97]"
+              >
+                Load more logos
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -173,23 +198,13 @@ function Chip({
 }
 
 function AssetCard({ asset }: { asset: CatalogAsset }) {
-  const [urlCopied, setUrlCopied] = useState(false);
+  // The icon is the primary action: click copies the PNG to the clipboard, the
+  // card blurs, and an "Icon Copied" overlay confirms before reverting.
   const [imgState, setImgState] = useState<"idle" | "busy" | "done" | "error">("idle");
-  const chainLabel = CHAINS[asset.chain as keyof typeof CHAINS]?.label ?? asset.chain;
-  const url = asset.logo.png256;
   const href = `/asset/${asset.chain}/${encodeURIComponent(asset.address)}`;
 
-  async function copyUrl() {
-    try {
-      await navigator.clipboard.writeText(url);
-      setUrlCopied(true);
-      setTimeout(() => setUrlCopied(false), 1200);
-    } catch {
-      /* clipboard unavailable */
-    }
-  }
-
   async function copyImage() {
+    if (imgState === "busy") return;
     setImgState("busy");
     try {
       const res = await fetch(
@@ -202,32 +217,48 @@ function AssetCard({ asset }: { asset: CatalogAsset }) {
     } catch {
       setImgState("error");
     } finally {
-      setTimeout(() => setImgState("idle"), 1400);
+      setTimeout(() => setImgState("idle"), 1300);
     }
   }
 
-  return (
-    <li className="group relative">
-      <Link
-        href={href}
-        className="flex items-center gap-3 rounded-xl border border-neutral-800 bg-neutral-900/50 p-3 pr-32 transition-colors hover:border-neutral-600 active:scale-[0.99]"
-        style={{ transitionProperty: "border-color, scale" }}
-      >
-        <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[repeating-conic-gradient(#262626_0_25%,#1a1a1a_0_50%)] bg-[length:14px_14px]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={asset.logo.png64}
-            alt={asset.symbol}
-            loading="lazy"
-            className="size-10 object-contain outline outline-1 -outline-offset-1 outline-white/10"
-          />
-        </div>
+  const copied = imgState === "done";
+  const failed = imgState === "error";
 
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <span className="truncate font-medium">{asset.symbol}</span>
+  return (
+    <li className="group relative flex flex-col">
+      <div className="relative mx-1.5 flex flex-1 flex-col items-center rounded-2xl border border-neutral-800 bg-neutral-900/40 px-3 pb-4 pt-6 transition-colors hover:border-neutral-600">
+        {/* Card content — blurs while the copied/failed overlay is showing. */}
+        <div
+          className={`flex flex-col items-center transition ${
+            copied || failed ? "blur-[2px]" : ""
+          }`}
+        >
+          <button
+            onClick={copyImage}
+            aria-label={`Copy ${asset.symbol} icon`}
+            title="Click to copy icon"
+            className="grid size-16 cursor-copy place-items-center overflow-hidden rounded-xl bg-[repeating-conic-gradient(#262626_0_25%,#1a1a1a_0_50%)] bg-[length:14px_14px] transition-transform active:scale-95"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={asset.logo.png64}
+              alt={asset.symbol}
+              loading="lazy"
+              className="size-12 object-contain outline outline-1 -outline-offset-1 outline-white/10"
+            />
+          </button>
+
+          <div className="mt-3 flex items-center gap-1 text-center">
+            <p className="max-w-[9rem] truncate text-sm font-medium text-neutral-100">
+              {asset.name}
+            </p>
             {asset.verified && (
-              <svg className="size-3.5 shrink-0 text-sky-400" viewBox="0 0 20 20" fill="currentColor" aria-label="verified">
+              <svg
+                className="size-3.5 shrink-0 text-sky-400"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-label="verified"
+              >
                 <path
                   fillRule="evenodd"
                   d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.7-9.3a1 1 0 0 0-1.4-1.4L9 10.6 7.7 9.3a1 1 0 0 0-1.4 1.4l2 2a1 1 0 0 0 1.4 0l4-4Z"
@@ -236,45 +267,32 @@ function AssetCard({ asset }: { asset: CatalogAsset }) {
               </svg>
             )}
           </div>
-          <p className="truncate text-sm text-neutral-400">{asset.name}</p>
-          <p className="truncate text-xs text-neutral-600">{chainLabel}</p>
-        </div>
-      </Link>
+          <p className="text-xs uppercase tracking-wide text-neutral-500">({asset.symbol})</p>
 
-      {/* Siblings of the Link (not nested) so clicking an action never navigates. */}
-      <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
-        <button
-          onClick={copyUrl}
-          aria-label="Copy logo URL"
-          title="Copy URL"
-          className="grid h-9 w-9 place-items-center rounded-lg border border-neutral-700 text-neutral-300 transition-[border-color,color,scale] hover:border-neutral-500 hover:text-neutral-100 active:scale-[0.94]"
-        >
-          {urlCopied ? (
-            <Check size={16} weight="bold" className="text-emerald-400" />
-          ) : (
-            <LinkSimple size={16} />
-          )}
-        </button>
-        <button
-          onClick={copyImage}
-          disabled={imgState === "busy"}
-          aria-label="Copy logo image to clipboard"
-          title="Copy image"
-          className="flex h-9 items-center gap-1.5 rounded-lg border border-neutral-700 px-2.5 text-xs text-neutral-300 transition-[border-color,color,scale] hover:border-neutral-500 hover:text-neutral-100 active:scale-[0.94] disabled:opacity-60"
-        >
-          {imgState === "done" ? (
-            <>
-              <Check size={14} weight="bold" className="text-emerald-400" /> Copied
-            </>
-          ) : imgState === "error" ? (
-            "Failed"
-          ) : (
-            <>
-              <Copy size={14} /> {imgState === "busy" ? "…" : "Copy"}
-            </>
-          )}
-        </button>
+          {/* Reserved slot keeps the card height stable; reveals on hover/focus. */}
+          <Link
+            href={href}
+            className="mt-3 rounded-full px-2.5 py-1 text-xs text-neutral-400 opacity-0 transition hover:text-neutral-100 focus-visible:opacity-100 group-hover:opacity-100"
+          >
+            View →
+          </Link>
+        </div>
+
+        {/* Copy confirmation overlay. */}
+        {(copied || failed) && (
+          <div className="pointer-events-none absolute inset-0 grid place-items-center rounded-2xl bg-neutral-950/40">
+            <span
+              className={`text-xs font-medium ${copied ? "text-emerald-400" : "text-red-400"}`}
+            >
+              {copied ? "✓ Icon Copied" : "Copy failed"}
+            </span>
+          </div>
+        )}
       </div>
+
+      {/* Shelf: a ledge line + soft shadow the cards appear to rest on. */}
+      <div className="mt-4 h-px w-full bg-white/10" />
+      <div className="h-3 w-full bg-gradient-to-b from-black/50 to-transparent" />
     </li>
   );
 }
