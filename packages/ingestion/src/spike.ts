@@ -22,18 +22,26 @@ import {
 import { fetchChainTokens, type SourceToken } from "./sources/trustwallet.js";
 import { fetchXStocks } from "./sources/xstocks.js";
 import { fetchCoinGecko } from "./sources/coingecko.js";
+import { fetchDefiLlama } from "./sources/defillama.js";
 import { fetchLogo } from "./normalize.js";
 import { getLogoSink, loadEnv, type LogoSink } from "./storage.js";
 
 /** How many top CoinGecko coins (by market cap) to pull logos + rank for. */
 const COINGECKO_TOP = 250;
+/** How many top DeFi protocols (by TVL) to pull logos for. */
+const DEFILLAMA_TOP = 300;
 
 /** On a (chain, address) collision, the higher-priority source's token wins. */
-const SOURCE_PRIORITY: Record<string, number> = { coingecko: 3, xstocks: 2, trustwallet: 1 };
+const SOURCE_PRIORITY: Record<string, number> = {
+  coingecko: 3,
+  xstocks: 2,
+  trustwallet: 1,
+  defillama: 1, // protocols are their own namespace — no token collisions
+};
 const priorityOf = (t: SourceToken) => SOURCE_PRIORITY[t.source ?? "trustwallet"] ?? 0;
 
-/** Per-chain token caps. `slice(0, limit)` of each TrustWallet tokenlist. */
-const CHAIN_LIMITS: Record<ChainName, number> = {
+/** Per-chain token caps (token chains only — `protocol` is sourced separately). */
+const CHAIN_LIMITS: Partial<Record<ChainName, number>> = {
   ethereum: 110,
   smartchain: 45,
   polygon: 25,
@@ -123,12 +131,15 @@ async function main() {
   const xstocks = await fetchXStocks();
   console.log(`Fetching top ${COINGECKO_TOP} coins from CoinGecko…`);
   const coingecko = await fetchCoinGecko(COINGECKO_TOP);
+  console.log(`Fetching top ${DEFILLAMA_TOP} protocols from DefiLlama…`);
+  const defillama = await fetchDefiLlama(DEFILLAMA_TOP);
 
   const trustwallet = perChain.flat();
-  const raw = [...trustwallet, ...xstocks, ...coingecko];
+  const raw = [...trustwallet, ...xstocks, ...coingecko, ...defillama];
 
   // Dedupe by canonical id; the higher-priority source wins (CoinGecko logos +
-  // rank beat TrustWallet, which fixes e.g. the plain Dogecoin mark).
+  // rank beat TrustWallet, which fixes e.g. the plain Dogecoin mark). Protocols
+  // live in their own `protocol:` namespace, so they never collide with tokens.
   const byId = new Map<string, SourceToken>();
   for (const t of raw) {
     const info = CHAINS[t.chain];
@@ -140,7 +151,7 @@ async function main() {
   const tokens = [...byId.values()];
   console.log(
     `Collected ${raw.length} raw (tw ${trustwallet.length}, xstocks ${xstocks.length}, ` +
-      `cg ${coingecko.length}) → ${tokens.length} after dedupe.`,
+      `cg ${coingecko.length}, defillama ${defillama.length}) → ${tokens.length} after dedupe.`,
   );
 
   await mkdir(PUBLIC_DIR, { recursive: true });
@@ -155,7 +166,7 @@ async function main() {
   const withLogo = assets.filter((a) => a.quality !== "missing");
   const manifest: AssetsManifest = {
     generatedAt: now,
-    sources: ["trustwallet", "xstocks", "coingecko"],
+    sources: ["trustwallet", "xstocks", "coingecko", "defillama"],
     count: withLogo.length,
     assets: withLogo,
   };

@@ -68,6 +68,17 @@ export const CHAINS: Record<string, ChainInfo> = {
     nativeSymbol: "SOL",
     nativeName: "Solana",
   },
+  // Pseudo-chain for non-token entities. DeFi protocols are keyed
+  // `protocol:<slug>` (e.g. protocol:lido) so they reuse the (chain, address)
+  // model, CDN paths, and UI without a schema change.
+  protocol: {
+    name: "protocol",
+    label: "Protocol",
+    evm: false,
+    trustwallet: "",
+    nativeSymbol: "",
+    nativeName: "",
+  },
 };
 
 export type ChainName = keyof typeof CHAINS;
