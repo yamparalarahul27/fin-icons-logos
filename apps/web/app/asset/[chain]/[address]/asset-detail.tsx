@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { CHAINS } from "@fin/shared";
 import type { CatalogAsset } from "../../../../lib/manifest";
+import { QuickSearch } from "../../../quick-search";
 
 /** The three visible sizes in the showcase ladder (px). 256 stays in the URL list. */
 const SHOWCASE = [128, 64, 32] as const;
@@ -21,6 +22,10 @@ export function AssetDetail({ asset }: { asset: CatalogAsset }) {
 
   return (
     <main className="mx-auto min-h-screen max-w-3xl px-6 py-10">
+      <div className="mb-5">
+        <QuickSearch />
+      </div>
+
       <Link
         href="/"
         className="inline-flex items-center gap-1.5 text-sm text-neutral-500 transition-colors hover:text-neutral-300"
