@@ -88,6 +88,15 @@ export const CHAINS: Record<string, ChainInfo> = {
     nativeSymbol: "",
     nativeName: "",
   },
+  // Pseudo-chain for wallet logos, keyed `wallet:<slug>` (wallet:metamask).
+  wallet: {
+    name: "wallet",
+    label: "Wallet",
+    evm: false,
+    trustwallet: "",
+    nativeSymbol: "",
+    nativeName: "",
+  },
 };
 
 export type ChainName = keyof typeof CHAINS;

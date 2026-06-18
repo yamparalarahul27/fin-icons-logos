@@ -24,6 +24,7 @@ import { fetchXStocks } from "./sources/xstocks.js";
 import { fetchCoinGecko } from "./sources/coingecko.js";
 import { fetchDefiLlama } from "./sources/defillama.js";
 import { fetchNetworks } from "./sources/networks.js";
+import { fetchWallets } from "./sources/wallets.js";
 import { fetchLogo } from "./normalize.js";
 import { getLogoSink, loadEnv, type LogoSink } from "./storage.js";
 
@@ -33,13 +34,16 @@ const COINGECKO_TOP = 250;
 const DEFILLAMA_TOP = 300;
 /** How many top chains (by TVL) to pull network logos for. */
 const NETWORKS_TOP = 100;
+/** How many wallets to pull from the WalletConnect registry. */
+const WALLETS_TOP = 200;
 
 /** On a (chain, address) collision, the higher-priority source's token wins. */
 const SOURCE_PRIORITY: Record<string, number> = {
   coingecko: 3,
   xstocks: 2,
   trustwallet: 1,
-  defillama: 1, // protocols are their own namespace — no token collisions
+  defillama: 1, // protocols/networks are their own namespace — no token collisions
+  walletconnect: 1, // wallets are their own namespace too
 };
 const priorityOf = (t: SourceToken) => SOURCE_PRIORITY[t.source ?? "trustwallet"] ?? 0;
 
@@ -104,7 +108,9 @@ async function buildAsset(token: SourceToken, sink: LogoSink, now: string): Prom
     coingeckoId: token.coingeckoId ?? null,
     rank: token.rank ?? null,
     source: token.source ?? "trustwallet",
-    sourceUrl: token.logoUrl,
+    // Provenance only — strip any query string so source credentials (e.g. the
+    // WalletConnect projectId) never land in the committed manifest.
+    sourceUrl: token.logoUrl.split("?")[0] ?? token.logoUrl,
     // Issuer-curated sources self-verify; otherwise native L1 coins are trusted.
     verified: token.verified ?? address === NATIVE_ADDRESS,
     quality,
@@ -138,9 +144,11 @@ async function main() {
   const defillama = await fetchDefiLlama(DEFILLAMA_TOP);
   console.log(`Fetching top ${NETWORKS_TOP} chains from DefiLlama…`);
   const networks = await fetchNetworks(NETWORKS_TOP);
+  console.log(`Fetching up to ${WALLETS_TOP} wallets from WalletConnect…`);
+  const wallets = await fetchWallets(WALLETS_TOP);
 
   const trustwallet = perChain.flat();
-  const raw = [...trustwallet, ...xstocks, ...coingecko, ...defillama, ...networks];
+  const raw = [...trustwallet, ...xstocks, ...coingecko, ...defillama, ...networks, ...wallets];
 
   // Dedupe by canonical id; the higher-priority source wins (CoinGecko logos +
   // rank beat TrustWallet, which fixes e.g. the plain Dogecoin mark). Protocols
@@ -156,8 +164,8 @@ async function main() {
   const tokens = [...byId.values()];
   console.log(
     `Collected ${raw.length} raw (tw ${trustwallet.length}, xstocks ${xstocks.length}, ` +
-      `cg ${coingecko.length}, defillama ${defillama.length}, networks ${networks.length}) → ` +
-      `${tokens.length} after dedupe.`,
+      `cg ${coingecko.length}, defillama ${defillama.length}, networks ${networks.length}, ` +
+      `wallets ${wallets.length}) → ${tokens.length} after dedupe.`,
   );
 
   await mkdir(PUBLIC_DIR, { recursive: true });
@@ -172,7 +180,7 @@ async function main() {
   const withLogo = assets.filter((a) => a.quality !== "missing");
   const manifest: AssetsManifest = {
     generatedAt: now,
-    sources: ["trustwallet", "xstocks", "coingecko", "defillama"],
+    sources: ["trustwallet", "xstocks", "coingecko", "defillama", "walletconnect"],
     count: withLogo.length,
     assets: withLogo,
   };
