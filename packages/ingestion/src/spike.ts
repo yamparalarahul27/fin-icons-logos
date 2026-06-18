@@ -23,6 +23,7 @@ import { fetchChainTokens, type SourceToken } from "./sources/trustwallet.js";
 import { fetchXStocks } from "./sources/xstocks.js";
 import { fetchCoinGecko } from "./sources/coingecko.js";
 import { fetchDefiLlama } from "./sources/defillama.js";
+import { fetchNetworks } from "./sources/networks.js";
 import { fetchLogo } from "./normalize.js";
 import { getLogoSink, loadEnv, type LogoSink } from "./storage.js";
 
@@ -30,6 +31,8 @@ import { getLogoSink, loadEnv, type LogoSink } from "./storage.js";
 const COINGECKO_TOP = 250;
 /** How many top DeFi protocols (by TVL) to pull logos for. */
 const DEFILLAMA_TOP = 300;
+/** How many top chains (by TVL) to pull network logos for. */
+const NETWORKS_TOP = 100;
 
 /** On a (chain, address) collision, the higher-priority source's token wins. */
 const SOURCE_PRIORITY: Record<string, number> = {
@@ -133,9 +136,11 @@ async function main() {
   const coingecko = await fetchCoinGecko(COINGECKO_TOP);
   console.log(`Fetching top ${DEFILLAMA_TOP} protocols from DefiLlama…`);
   const defillama = await fetchDefiLlama(DEFILLAMA_TOP);
+  console.log(`Fetching top ${NETWORKS_TOP} chains from DefiLlama…`);
+  const networks = await fetchNetworks(NETWORKS_TOP);
 
   const trustwallet = perChain.flat();
-  const raw = [...trustwallet, ...xstocks, ...coingecko, ...defillama];
+  const raw = [...trustwallet, ...xstocks, ...coingecko, ...defillama, ...networks];
 
   // Dedupe by canonical id; the higher-priority source wins (CoinGecko logos +
   // rank beat TrustWallet, which fixes e.g. the plain Dogecoin mark). Protocols
@@ -151,7 +156,8 @@ async function main() {
   const tokens = [...byId.values()];
   console.log(
     `Collected ${raw.length} raw (tw ${trustwallet.length}, xstocks ${xstocks.length}, ` +
-      `cg ${coingecko.length}, defillama ${defillama.length}) → ${tokens.length} after dedupe.`,
+      `cg ${coingecko.length}, defillama ${defillama.length}, networks ${networks.length}) → ` +
+      `${tokens.length} after dedupe.`,
   );
 
   await mkdir(PUBLIC_DIR, { recursive: true });

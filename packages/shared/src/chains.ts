@@ -79,6 +79,15 @@ export const CHAINS: Record<string, ChainInfo> = {
     nativeSymbol: "",
     nativeName: "",
   },
+  // Pseudo-chain for network/L1-L2 logos, keyed `network:<slug>` (network:base).
+  network: {
+    name: "network",
+    label: "Network",
+    evm: false,
+    trustwallet: "",
+    nativeSymbol: "",
+    nativeName: "",
+  },
 };
 
 export type ChainName = keyof typeof CHAINS;
