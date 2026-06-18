@@ -5,23 +5,36 @@ import { useMemo, useState } from "react";
 import { CHAINS } from "@fin/shared";
 import type { CatalogAsset } from "../lib/manifest";
 
+const chainLabelOf = (chain: string) =>
+  CHAINS[chain as keyof typeof CHAINS]?.label ?? chain;
+
 export function Explorer({ assets }: { assets: CatalogAsset[] }) {
   const [query, setQuery] = useState("");
+  const [chain, setChain] = useState<string>("all");
+
+  // Chains present in the catalog, most-populated first, for the filter chips.
+  const chains = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const a of assets) counts.set(a.chain, (counts.get(a.chain) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  }, [assets]);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return assets;
     return assets.filter((a) => {
-      const chainLabel = CHAINS[a.chain as keyof typeof CHAINS]?.label ?? a.chain;
+      if (chain !== "all" && a.chain !== chain) return false;
+      if (!q) return true;
       return (
         a.symbol.toLowerCase().includes(q) ||
         a.name.toLowerCase().includes(q) ||
         a.address.toLowerCase().includes(q) ||
         a.chain.toLowerCase().includes(q) ||
-        chainLabel.toLowerCase().includes(q)
+        chainLabelOf(a.chain).toLowerCase().includes(q)
       );
     });
-  }, [assets, query]);
+  }, [assets, query, chain]);
+
+  const filtered = query.trim() !== "" || chain !== "all";
 
   return (
     <div>
@@ -45,16 +58,31 @@ export function Explorer({ assets }: { assets: CatalogAsset[] }) {
             className="w-full rounded-xl border border-neutral-800 bg-neutral-900/60 py-3 pl-10 pr-4 text-sm text-neutral-100 placeholder:text-neutral-500 outline-none transition focus:border-neutral-600"
           />
         </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <ChainChip label="All" count={assets.length} active={chain === "all"} onClick={() => setChain("all")} />
+          {chains.map(([c, count]) => (
+            <ChainChip
+              key={c}
+              label={chainLabelOf(c)}
+              count={count}
+              active={chain === c}
+              onClick={() => setChain(c)}
+            />
+          ))}
+        </div>
+
         <p className="mt-2 text-xs text-neutral-500">
           {results.length.toLocaleString()}
           {results.length === 1 ? " asset" : " assets"}
+          {chain !== "all" ? ` on ${chainLabelOf(chain)}` : ""}
           {query.trim() ? ` matching “${query.trim()}”` : ""}
         </p>
       </div>
 
       {results.length === 0 ? (
         <p className="py-16 text-center text-sm text-neutral-500">
-          No assets match “{query.trim()}”.
+          {filtered ? "No assets match your filters." : "No assets."}
         </p>
       ) : (
         <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -64,6 +92,33 @@ export function Explorer({ assets }: { assets: CatalogAsset[] }) {
         </ul>
       )}
     </div>
+  );
+}
+
+function ChainChip({
+  label,
+  count,
+  active,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded-full px-3 py-1 text-sm ring-1 transition-[background-color,color,box-shadow,scale] active:scale-[0.96] ${
+        active
+          ? "bg-white text-neutral-900 ring-white"
+          : "text-neutral-300 ring-neutral-700 hover:ring-neutral-500"
+      }`}
+    >
+      {label}
+      <span className="ml-1.5 text-xs tabular-nums opacity-70">{count}</span>
+    </button>
   );
 }
 
