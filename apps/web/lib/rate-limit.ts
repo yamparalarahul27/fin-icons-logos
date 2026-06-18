@@ -27,7 +27,9 @@ interface Tier {
 
 /** Which limit applies to a path, or null to skip (no limit). */
 function tierForPath(pathname: string): Tier | null {
-  if (pathname === "/api/admin/login") return { name: "login", limit: 10, windowMs: 60_000 };
+  // Tight: the admin secret may be a low-entropy 4-digit PIN, so brute-force
+  // resistance leans heavily on this limit (enable Upstash to enforce it shared).
+  if (pathname === "/api/admin/login") return { name: "login", limit: 5, windowMs: 60_000 };
   if (pathname === "/api/admin/upload") return { name: "upload", limit: 20, windowMs: 60_000 };
   if (pathname.startsWith("/api/admin/")) return { name: "admin", limit: 60, windowMs: 60_000 };
   // Public JSON API (lands in a later phase) — anonymous IP tier.
