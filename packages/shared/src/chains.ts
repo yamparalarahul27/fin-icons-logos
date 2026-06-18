@@ -27,6 +27,15 @@ export const CHAINS: Record<string, ChainInfo> = {
     nativeSymbol: "BTC",
     nativeName: "Bitcoin",
   },
+  dogecoin: {
+    name: "dogecoin",
+    label: "Dogecoin",
+    evm: false,
+    // TrustWallet's folder for Dogecoin is `doge`, not `dogecoin`.
+    trustwallet: "doge",
+    nativeSymbol: "DOGE",
+    nativeName: "Dogecoin",
+  },
   ethereum: {
     name: "ethereum",
     label: "Ethereum",

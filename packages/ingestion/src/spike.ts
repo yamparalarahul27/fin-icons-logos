@@ -26,13 +26,16 @@ import { fetchXStocks } from "./sources/xstocks.js";
 import { fetchLogo } from "./normalize.js";
 import { getLogoSink, loadEnv, type LogoSink } from "./storage.js";
 
-/** Per-chain token caps, tuned to land near ~200 total. */
+/** Per-chain token caps. `slice(0, limit)` of each TrustWallet tokenlist. */
 const CHAIN_LIMITS: Record<ChainName, number> = {
   ethereum: 110,
   smartchain: 45,
   polygon: 25,
-  solana: 15,
+  // Solana's TrustWallet list is ~55 and includes majors (WIF, PYTH, RNDR, …)
+  // past the old cap of 15. Take the whole list so they're not sliced off.
+  solana: 200,
   bitcoin: 0, // native only
+  dogecoin: 0, // native only
 };
 
 /** Source images smaller than this on their longest edge get flagged for review. */
