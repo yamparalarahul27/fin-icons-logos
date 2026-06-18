@@ -8,6 +8,7 @@
  *
  * Object paths are backend-agnostic: `<chain>/<address>/<size>.png`.
  */
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -38,12 +39,24 @@ export function loadEnv(repoRoot: string): void {
   }
 }
 
-function urlSet(base: string, sourceW: number, sourceH: number): LogoSet {
+/**
+ * A short content hash of the source image, appended to URLs as `?v=`. Logo
+ * bytes live at stable paths cached `immutable` on the CDN, so when a logo
+ * changes (e.g. a better source), the path alone can't bust the edge cache.
+ * The version query gives changed logos a fresh cache key while unchanged ones
+ * keep theirs (and stay cached).
+ */
+function versionOf(raw: RawLogo): string {
+  return createHash("sha256").update(raw.bytes).digest("hex").slice(0, 10);
+}
+
+function urlSet(base: string, version: string, sourceW: number, sourceH: number): LogoSet {
+  const v = `?v=${version}`;
   return {
-    png256: `${base}/256.png`,
-    png128: `${base}/128.png`,
-    png64: `${base}/64.png`,
-    png32: `${base}/32.png`,
+    png256: `${base}/256.png${v}`,
+    png128: `${base}/128.png${v}`,
+    png64: `${base}/64.png${v}`,
+    png32: `${base}/32.png${v}`,
     svg: null,
     sourceWidth: sourceW,
     sourceHeight: sourceH,
@@ -60,7 +73,7 @@ function localSink(outDir: string, publicBase: string): LogoSink {
       await Promise.all(
         rendered.map(({ size, png }) => writeFile(path.join(dir, `${size}.png`), png)),
       );
-      return urlSet(`${publicBase}/${chain}/${address}`, raw.width, raw.height);
+      return urlSet(`${publicBase}/${chain}/${address}`, versionOf(raw), raw.width, raw.height);
     },
   };
 }
@@ -142,7 +155,12 @@ function r2Sink(cfg: R2Config): LogoSink {
           ),
         ),
       );
-      return urlSet(`${cfg.publicBase}/${cfg.prefix}/${chain}/${address}`, raw.width, raw.height);
+      return urlSet(
+        `${cfg.publicBase}/${cfg.prefix}/${chain}/${address}`,
+        versionOf(raw),
+        raw.width,
+        raw.height,
+      );
     },
   };
 }
