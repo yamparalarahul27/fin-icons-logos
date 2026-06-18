@@ -12,7 +12,7 @@ export function GET() {
     name: "fin-icons-logos API",
     version: "v1",
     endpoints: {
-      assets: "/api/v1/assets?chain=&symbol=&verified=&limit=&offset=",
+      assets: "/api/v1/assets?kind=&chain=&symbol=&verified=&limit=&offset=",
       asset: "/api/v1/assets/{chain}/{address}",
       search: "/api/v1/search?q=&limit=",
       recent: "/api/v1/recent?limit=",

@@ -92,6 +92,21 @@ export const CHAINS: Record<string, ChainInfo> = {
 
 export type ChainName = keyof typeof CHAINS;
 
+/** Top-level category of an asset. Derived from the chain namespace. */
+export type AssetKind = "token" | "protocol" | "network" | "wallet";
+
+/**
+ * The kind of an asset, derived from its chain. Non-token entities use a
+ * pseudo-chain namespace (`protocol`, `network`, `wallet`); everything else is a
+ * token. Kept derived (not stored) so the manifest needs no schema change.
+ */
+export function kindOf(chain: string): AssetKind {
+  if (chain === "protocol") return "protocol";
+  if (chain === "network") return "network";
+  if (chain === "wallet") return "wallet";
+  return "token";
+}
+
 /** Reserved address for native L1 coins that have no contract. */
 export const NATIVE_ADDRESS = "native";
 

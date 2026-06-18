@@ -3,27 +3,54 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Check, Copy, LinkSimple } from "@phosphor-icons/react";
-import { CHAINS } from "@fin/shared";
+import { CHAINS, kindOf, type AssetKind } from "@fin/shared";
 import type { CatalogAsset } from "../lib/manifest";
 
 const chainLabelOf = (chain: string) =>
   CHAINS[chain as keyof typeof CHAINS]?.label ?? chain;
 
+type KindFilter = "all" | AssetKind;
+const KIND_LABEL: Record<AssetKind, string> = {
+  token: "Tokens",
+  protocol: "Protocols",
+  network: "Networks",
+  wallet: "Wallets",
+};
+
 export function Explorer({ assets }: { assets: CatalogAsset[] }) {
   const [query, setQuery] = useState("");
+  const [kind, setKind] = useState<KindFilter>("all");
   const [chain, setChain] = useState<string>("all");
 
-  // Chains present in the catalog, most-populated first, for the filter chips.
+  // Category counts for the top-level switcher (only kinds that are present).
+  const kinds = useMemo(() => {
+    const counts = new Map<AssetKind, number>();
+    for (const a of assets) {
+      const k = kindOf(a.chain);
+      counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
+    return (["token", "protocol", "network", "wallet"] as AssetKind[])
+      .filter((k) => counts.has(k))
+      .map((k) => [k, counts.get(k)!] as const);
+  }, [assets]);
+
+  // Token chains, most-populated first — shown only when viewing Tokens.
   const chains = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const a of assets) counts.set(a.chain, (counts.get(a.chain) ?? 0) + 1);
+    for (const a of assets) {
+      if (kindOf(a.chain) !== "token") continue;
+      counts.set(a.chain, (counts.get(a.chain) ?? 0) + 1);
+    }
     return [...counts.entries()].sort((a, b) => b[1] - a[1]);
   }, [assets]);
+
+  const showChains = kind === "token";
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     return assets.filter((a) => {
-      if (chain !== "all" && a.chain !== chain) return false;
+      if (kind !== "all" && kindOf(a.chain) !== kind) return false;
+      if (showChains && chain !== "all" && a.chain !== chain) return false;
       if (!q) return true;
       return (
         a.symbol.toLowerCase().includes(q) ||
@@ -33,9 +60,14 @@ export function Explorer({ assets }: { assets: CatalogAsset[] }) {
         chainLabelOf(a.chain).toLowerCase().includes(q)
       );
     });
-  }, [assets, query, chain]);
+  }, [assets, query, kind, chain, showChains]);
 
-  const filtered = query.trim() !== "" || chain !== "all";
+  function selectKind(k: KindFilter) {
+    setKind(k);
+    setChain("all"); // chain sub-filter only applies within Tokens
+  }
+
+  const filtered = query.trim() !== "" || kind !== "all" || chain !== "all";
 
   return (
     <div>
@@ -60,23 +92,35 @@ export function Explorer({ assets }: { assets: CatalogAsset[] }) {
           />
         </div>
 
+        {/* Category switcher */}
         <div className="mt-3 flex flex-wrap gap-2">
-          <ChainChip label="All" count={assets.length} active={chain === "all"} onClick={() => setChain("all")} />
-          {chains.map(([c, count]) => (
-            <ChainChip
-              key={c}
-              label={chainLabelOf(c)}
+          <Chip label="All" count={assets.length} active={kind === "all"} onClick={() => selectKind("all")} />
+          {kinds.map(([k, count]) => (
+            <Chip
+              key={k}
+              label={KIND_LABEL[k]}
               count={count}
-              active={chain === c}
-              onClick={() => setChain(c)}
+              active={kind === k}
+              onClick={() => selectKind(k)}
             />
           ))}
         </div>
 
+        {/* Chain sub-filter — only within Tokens */}
+        {showChains && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Chip label="All chains" count={chains.reduce((n, [, c]) => n + c, 0)} active={chain === "all"} onClick={() => setChain("all")} subtle />
+            {chains.map(([c, count]) => (
+              <Chip key={c} label={chainLabelOf(c)} count={count} active={chain === c} onClick={() => setChain(c)} subtle />
+            ))}
+          </div>
+        )}
+
         <p className="mt-2 text-xs text-neutral-500">
           {results.length.toLocaleString()}
           {results.length === 1 ? " asset" : " assets"}
-          {chain !== "all" ? ` on ${chainLabelOf(chain)}` : ""}
+          {kind !== "all" ? ` · ${KIND_LABEL[kind as AssetKind]}` : ""}
+          {showChains && chain !== "all" ? ` on ${chainLabelOf(chain)}` : ""}
           {query.trim() ? ` matching “${query.trim()}”` : ""}
         </p>
       </div>
@@ -96,25 +140,30 @@ export function Explorer({ assets }: { assets: CatalogAsset[] }) {
   );
 }
 
-function ChainChip({
+function Chip({
   label,
   count,
   active,
   onClick,
+  subtle,
 }: {
   label: string;
   count: number;
   active: boolean;
   onClick: () => void;
+  subtle?: boolean;
 }) {
+  // `subtle` gives the chain sub-filter a lighter weight than the kind tabs.
+  const size = subtle ? "px-2.5 py-0.5 text-xs" : "px-3 py-1 text-sm";
+  const inactive = subtle
+    ? "text-neutral-400 ring-neutral-800 hover:ring-neutral-600"
+    : "text-neutral-300 ring-neutral-700 hover:ring-neutral-500";
   return (
     <button
       onClick={onClick}
       aria-pressed={active}
-      className={`rounded-full px-3 py-1 text-sm ring-1 transition-[background-color,color,box-shadow,scale] active:scale-[0.96] ${
-        active
-          ? "bg-white text-neutral-900 ring-white"
-          : "text-neutral-300 ring-neutral-700 hover:ring-neutral-500"
+      className={`rounded-full ring-1 transition-[background-color,color,box-shadow,scale] active:scale-[0.96] ${size} ${
+        active ? "bg-white text-neutral-900 ring-white" : inactive
       }`}
     >
       {label}

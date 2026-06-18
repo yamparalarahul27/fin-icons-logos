@@ -9,6 +9,7 @@ export function OPTIONS() {
 /** GET /api/v1/assets — filter by chain/symbol/verified, paginated. */
 export async function GET(req: Request) {
   const sp = new URL(req.url).searchParams;
+  const kind = sp.get("kind");
   const chain = sp.get("chain");
   const symbol = sp.get("symbol")?.toLowerCase();
   const verified = sp.get("verified");
@@ -16,6 +17,7 @@ export async function GET(req: Request) {
   const offset = intParam(sp.get("offset"), 0, 1_000_000);
 
   let assets = await loadPublicAssets();
+  if (kind) assets = assets.filter((a) => a.kind === kind);
   if (chain) assets = assets.filter((a) => a.chain === chain);
   if (symbol) assets = assets.filter((a) => a.symbol.toLowerCase() === symbol);
   if (verified === "true") assets = assets.filter((a) => a.verified);

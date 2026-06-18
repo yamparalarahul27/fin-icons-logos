@@ -4,11 +4,12 @@
  * Serves the same manifest the explorer reads, as a CORS-open, paginated API for
  * programmatic consumers. Logo URLs are the override-wins (resolved) CDN paths.
  */
-import { resolveLogo, type Asset } from "@fin/shared";
+import { kindOf, resolveLogo, type Asset, type AssetKind } from "@fin/shared";
 import { loadQueue } from "./manifest";
 
 export interface PublicAsset {
   id: string;
+  kind: AssetKind;
   chain: string;
   address: string;
   symbol: string;
@@ -32,6 +33,7 @@ function toPublicAsset(asset: Asset): PublicAsset {
   const logo = resolveLogo(asset);
   return {
     id: asset.id,
+    kind: kindOf(asset.chain),
     chain: asset.chain,
     address: asset.address,
     symbol: asset.symbol,
