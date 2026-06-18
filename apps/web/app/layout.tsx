@@ -3,8 +3,9 @@ import "./globals.css";
 import { DevAnnotation } from "./dev-annotation";
 
 export const metadata: Metadata = {
-  title: "fin-icons-logos",
-  description: "The always-up-to-date registry of crypto token logos.",
+  title: "Logobase — The complete crypto logo library",
+  description:
+    "The complete crypto logo library. Search tokens, protocols, networks and wallets, then copy any logo with one click. Free to use.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
