@@ -22,6 +22,10 @@ export interface SourceToken {
   source?: string;
   /** Force-verify (issuer-curated lists). Defaults to native-coin-only. */
   verified?: boolean;
+  /** Market-cap rank, when the source provides one (CoinGecko). */
+  rank?: number | null;
+  /** CoinGecko coin id, for cross-referencing on refresh. */
+  coingeckoId?: string | null;
 }
 
 interface TokenListEntry {

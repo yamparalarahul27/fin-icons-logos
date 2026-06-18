@@ -1,13 +1,11 @@
 /**
- * Phase 0 data spike (PLAN.md §7).
+ * Ingestion pipeline (PLAN.md §7, BACKLOG.md B1).
  *
- * Pull ~200 assets from TrustWallet, normalize logos to 32/64/128/256 PNG with
- * sharp, and emit apps/web/public/{logos,assets.json}. No DB, no CDN — the goal
- * is to validate the data shape + image quality before building any UI.
- *
- * CoinGecko (rank, launch date for the >=4-month age filter) is deferred: its
- * host is not in this environment's network egress allowlist. Those fields are
- * present in the schema but null for now.
+ * Pull assets from TrustWallet (curated per-chain lists), xStocks (tokenized
+ * equities), and CoinGecko (top coins by market cap — canonical logos + rank),
+ * dedupe by (chain, address) with source priority, normalize logos to
+ * 32/64/128/256 PNG with sharp, upload to R2/CDN (or local fallback), and emit
+ * apps/web/public/assets.json.
  */
 import { writeFile, rm, mkdir } from "node:fs/promises";
 import path from "node:path";
@@ -23,8 +21,16 @@ import {
 } from "@fin/shared";
 import { fetchChainTokens, type SourceToken } from "./sources/trustwallet.js";
 import { fetchXStocks } from "./sources/xstocks.js";
+import { fetchCoinGecko } from "./sources/coingecko.js";
 import { fetchLogo } from "./normalize.js";
 import { getLogoSink, loadEnv, type LogoSink } from "./storage.js";
+
+/** How many top CoinGecko coins (by market cap) to pull logos + rank for. */
+const COINGECKO_TOP = 250;
+
+/** On a (chain, address) collision, the higher-priority source's token wins. */
+const SOURCE_PRIORITY: Record<string, number> = { coingecko: 3, xstocks: 2, trustwallet: 1 };
+const priorityOf = (t: SourceToken) => SOURCE_PRIORITY[t.source ?? "trustwallet"] ?? 0;
 
 /** Per-chain token caps. `slice(0, limit)` of each TrustWallet tokenlist. */
 const CHAIN_LIMITS: Record<ChainName, number> = {
@@ -84,8 +90,8 @@ async function buildAsset(token: SourceToken, sink: LogoSink, now: string): Prom
     symbol: token.symbol,
     name: token.name,
     decimals: token.decimals,
-    coingeckoId: null,
-    rank: null,
+    coingeckoId: token.coingeckoId ?? null,
+    rank: token.rank ?? null,
     source: token.source ?? "trustwallet",
     sourceUrl: token.logoUrl,
     // Issuer-curated sources self-verify; otherwise native L1 coins are trusted.
@@ -115,11 +121,26 @@ async function main() {
   );
   console.log("Fetching tokenized equities from xStocks…");
   const xstocks = await fetchXStocks();
+  console.log(`Fetching top ${COINGECKO_TOP} coins from CoinGecko…`);
+  const coingecko = await fetchCoinGecko(COINGECKO_TOP);
 
-  const tokens = [...perChain.flat(), ...xstocks];
+  const trustwallet = perChain.flat();
+  const raw = [...trustwallet, ...xstocks, ...coingecko];
+
+  // Dedupe by canonical id; the higher-priority source wins (CoinGecko logos +
+  // rank beat TrustWallet, which fixes e.g. the plain Dogecoin mark).
+  const byId = new Map<string, SourceToken>();
+  for (const t of raw) {
+    const info = CHAINS[t.chain];
+    if (!info) continue;
+    const id = `${t.chain}:${normalizeAddress(t.address, info.evm)}`;
+    const current = byId.get(id);
+    if (!current || priorityOf(t) > priorityOf(current)) byId.set(id, t);
+  }
+  const tokens = [...byId.values()];
   console.log(
-    `Collected ${tokens.length} candidate tokens ` +
-      `(${tokens.length - xstocks.length} crypto + ${xstocks.length} xStocks).`,
+    `Collected ${raw.length} raw (tw ${trustwallet.length}, xstocks ${xstocks.length}, ` +
+      `cg ${coingecko.length}) → ${tokens.length} after dedupe.`,
   );
 
   await mkdir(PUBLIC_DIR, { recursive: true });
@@ -134,7 +155,7 @@ async function main() {
   const withLogo = assets.filter((a) => a.quality !== "missing");
   const manifest: AssetsManifest = {
     generatedAt: now,
-    sources: ["trustwallet", "xstocks"],
+    sources: ["trustwallet", "xstocks", "coingecko"],
     count: withLogo.length,
     assets: withLogo,
   };
