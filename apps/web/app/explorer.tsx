@@ -226,10 +226,17 @@ function AssetCard({ asset }: { asset: CatalogAsset }) {
 
   return (
     <li className="group relative flex flex-col">
-      <div className="relative mx-1.5 flex flex-1 flex-col items-center rounded-2xl border border-neutral-800 bg-neutral-900/40 px-3 pb-4 pt-6 transition-colors hover:border-neutral-600">
-        {/* Card content — blurs while the copied/failed overlay is showing. */}
+      <div
+        className={`relative mx-1.5 flex flex-1 flex-col items-center justify-center overflow-hidden rounded-2xl border px-3 py-6 transition-colors ${
+          copied || failed
+            ? "border-neutral-600 bg-neutral-900/70"
+            : "border-transparent bg-neutral-900/40"
+        }`}
+      >
+        {/* Card content — lifts on hover to make room for "View", and blurs
+            behind the copied/failed overlay. */}
         <div
-          className={`flex flex-col items-center transition ${
+          className={`flex flex-col items-center transition duration-300 ease-out group-hover:-translate-y-3 ${
             copied || failed ? "blur-[2px]" : ""
           }`}
         >
@@ -244,7 +251,7 @@ function AssetCard({ asset }: { asset: CatalogAsset }) {
               src={asset.logo.png64}
               alt={asset.symbol}
               loading="lazy"
-              className="size-12 object-contain outline outline-1 -outline-offset-1 outline-white/10"
+              className="size-12 object-contain"
             />
           </button>
 
@@ -268,19 +275,19 @@ function AssetCard({ asset }: { asset: CatalogAsset }) {
             )}
           </div>
           <p className="text-xs uppercase tracking-wide text-neutral-500">({asset.symbol})</p>
-
-          {/* Reserved slot keeps the card height stable; reveals on hover/focus. */}
-          <Link
-            href={href}
-            className="mt-3 rounded-full px-2.5 py-1 text-xs text-neutral-400 opacity-0 transition hover:text-neutral-100 focus-visible:opacity-100 group-hover:opacity-100"
-          >
-            View →
-          </Link>
         </div>
+
+        {/* "View" rides in from below on hover — no empty space reserved. */}
+        <Link
+          href={href}
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 translate-y-2 rounded-full px-2.5 py-1 text-xs text-neutral-300 opacity-0 transition duration-300 ease-out hover:text-neutral-100 focus-visible:translate-y-0 focus-visible:opacity-100 group-hover:translate-y-0 group-hover:opacity-100"
+        >
+          View →
+        </Link>
 
         {/* Copy confirmation overlay. */}
         {(copied || failed) && (
-          <div className="pointer-events-none absolute inset-0 grid place-items-center rounded-2xl bg-neutral-950/40">
+          <div className="pointer-events-none absolute inset-0 grid place-items-center bg-neutral-950/40">
             <span
               className={`text-xs font-medium ${copied ? "text-emerald-400" : "text-red-400"}`}
             >
@@ -290,9 +297,17 @@ function AssetCard({ asset }: { asset: CatalogAsset }) {
         )}
       </div>
 
-      {/* Shelf: a ledge line + soft shadow the cards appear to rest on. */}
-      <div className="mt-4 h-px w-full bg-white/10" />
-      <div className="h-3 w-full bg-gradient-to-b from-black/50 to-transparent" />
+      {/* Contact shadow — grounds the tile onto the shelf. */}
+      <div className="mx-auto mt-3 h-2.5 w-1/2 rounded-[50%] bg-black/45 blur-md" />
+
+      {/* Shelf — a lit front lip, a hint of surface depth, and a cast shadow.
+          Column-gap is 0 so each card's full-width shelf abuts its neighbour
+          into one continuous ledge per row. */}
+      <div className="-mt-1 w-full">
+        <div className="h-px w-full bg-white/30" />
+        <div className="h-2 w-full bg-gradient-to-b from-white/[0.06] to-transparent" />
+        <div className="h-5 w-full bg-gradient-to-b from-black/55 to-transparent" />
+      </div>
     </li>
   );
 }
