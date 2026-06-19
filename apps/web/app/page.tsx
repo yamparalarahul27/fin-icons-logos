@@ -1,5 +1,6 @@
 import { loadCatalog } from "../lib/manifest";
 import { Explorer } from "./explorer";
+import { AgentCta } from "./agent-cta";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,7 @@ export default async function Home() {
           <br />
           crypto logo library
         </h1>
+        <AgentCta />
       </header>
 
       <Explorer assets={assets} />
