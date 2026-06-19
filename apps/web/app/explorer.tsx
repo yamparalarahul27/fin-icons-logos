@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CHAINS, kindOf, type AssetKind } from "@fin/shared";
 import type { CatalogAsset } from "../lib/manifest";
 
@@ -70,6 +70,23 @@ export function Explorer({ assets }: { assets: CatalogAsset[] }) {
     setVisible(PAGE_SIZE);
   }, [query, kind, chain]);
 
+  // Auto-load the next batch as the sentinel nears the viewport (infinite scroll).
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisible((v) => (v < results.length ? v + PAGE_SIZE : v));
+        }
+      },
+      { rootMargin: "800px" }, // prefetch before the user reaches the bottom
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [results.length, visible]);
+
   function selectKind(k: KindFilter) {
     setKind(k);
     setChain("all"); // chain sub-filter only applies within Tokens
@@ -114,13 +131,31 @@ export function Explorer({ assets }: { assets: CatalogAsset[] }) {
           ))}
         </div>
 
-        {/* Chain sub-filter — only within Tokens */}
-        {showChains && (
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Chip label="All chains" count={chains.reduce((n, [, c]) => n + c, 0)} active={chain === "all"} onClick={() => setChain("all")} subtle />
-            {chains.map(([c, count]) => (
-              <Chip key={c} label={chainLabelOf(c)} count={count} active={chain === c} onClick={() => setChain(c)} subtle />
-            ))}
+        {/* Chain sub-filter — a compact dropdown (secondary to the kind tabs),
+            shown only within Tokens. */}
+        {showChains && chains.length > 0 && (
+          <div className="relative mt-3 inline-block">
+            <select
+              value={chain}
+              onChange={(e) => setChain(e.target.value)}
+              aria-label="Filter by chain"
+              className="appearance-none rounded-lg border border-neutral-800 bg-neutral-900/60 py-1.5 pl-3 pr-9 text-sm text-neutral-300 outline-none transition-colors hover:border-neutral-600 focus:border-neutral-600"
+            >
+              <option value="all">All chains ({chains.reduce((n, [, c]) => n + c, 0)})</option>
+              {chains.map(([c, count]) => (
+                <option key={c} value={c}>
+                  {chainLabelOf(c)} ({count})
+                </option>
+              ))}
+            </select>
+            <svg
+              className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-neutral-500"
+              viewBox="0 0 20 20"
+              fill="none"
+              aria-hidden
+            >
+              <path d="m6 8 4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </div>
         )}
 
@@ -150,13 +185,8 @@ export function Explorer({ assets }: { assets: CatalogAsset[] }) {
           </ul>
 
           {visible < results.length && (
-            <div className="mt-10 flex justify-center">
-              <button
-                onClick={() => setVisible((v) => v + PAGE_SIZE)}
-                className="rounded-full border border-neutral-700 px-5 py-2 text-sm text-neutral-300 transition-[border-color,color,scale] hover:border-neutral-500 hover:text-neutral-100 active:scale-[0.97]"
-              >
-                Load more logos
-              </button>
+            <div ref={sentinelRef} className="mt-10 flex justify-center py-4 text-xs text-neutral-600">
+              Loading more…
             </div>
           )}
         </>
@@ -170,25 +200,20 @@ function Chip({
   count,
   active,
   onClick,
-  subtle,
 }: {
   label: string;
   count: number;
   active: boolean;
   onClick: () => void;
-  subtle?: boolean;
 }) {
-  // `subtle` gives the chain sub-filter a lighter weight than the kind tabs.
-  const size = subtle ? "px-2.5 py-0.5 text-xs" : "px-3 py-1 text-sm";
-  const inactive = subtle
-    ? "text-neutral-400 ring-neutral-800 hover:ring-neutral-600"
-    : "text-neutral-300 ring-neutral-700 hover:ring-neutral-500";
   return (
     <button
       onClick={onClick}
       aria-pressed={active}
-      className={`rounded-full ring-1 transition-[background-color,color,box-shadow,scale] active:scale-[0.96] ${size} ${
-        active ? "bg-white text-neutral-900 ring-white" : inactive
+      className={`rounded-full px-3 py-1 text-sm ring-1 transition-[background-color,color,box-shadow,scale] active:scale-[0.96] ${
+        active
+          ? "bg-white text-neutral-900 ring-white"
+          : "text-neutral-300 ring-neutral-700 hover:ring-neutral-500"
       }`}
     >
       {label}
