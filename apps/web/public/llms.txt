@@ -1,0 +1,91 @@
+# Logobase — crypto logo library for AI coding agents
+
+Logobase serves up-to-date logos for crypto tokens, DeFi protocols, networks,
+and wallets (1,200+ icons). Use a logo by URL (no install, no API key), or query
+the JSON API to discover assets. All logos are square transparent PNGs.
+
+--------------------------------------------------------------------------------
+## 1. Logo image URLs  (primary — drop straight into <img> / CSS)
+
+Pattern:
+  https://cdn.defitriangle.xyz/logos/{namespace}/{id}/{size}.png
+
+- size is one of: 32 | 64 | 128 | 256
+- Logos are immutable and CDN-cached — safe to hotlink directly.
+
+By category:
+
+  Token (ERC-20, SPL, etc.) — {chain}/{contractAddress}, EVM addresses LOWERCASED:
+    https://cdn.defitriangle.xyz/logos/ethereum/0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48/64.png   # USDC
+
+  Native L1 coin — {chain}/native:
+    https://cdn.defitriangle.xyz/logos/bitcoin/native/64.png     # BTC
+    https://cdn.defitriangle.xyz/logos/ethereum/native/64.png    # ETH
+    https://cdn.defitriangle.xyz/logos/dogecoin/native/64.png    # DOGE
+
+  DeFi protocol — protocol/{slug}:
+    https://cdn.defitriangle.xyz/logos/protocol/lido/64.png
+    https://cdn.defitriangle.xyz/logos/protocol/aave-v3/64.png
+
+  Network / chain — network/{slug}:
+    https://cdn.defitriangle.xyz/logos/network/base/64.png
+    https://cdn.defitriangle.xyz/logos/network/arbitrum/64.png
+
+  Wallet — wallet/{slug}:
+    https://cdn.defitriangle.xyz/logos/wallet/metamask/64.png
+    https://cdn.defitriangle.xyz/logos/wallet/phantom/64.png
+
+Token chains currently covered: ethereum, smartchain (BNB Smart Chain), polygon,
+solana, bitcoin, dogecoin.
+
+--------------------------------------------------------------------------------
+## 2. Discover assets — JSON API
+
+Base: https://icons.hirahul.xyz/api/v1   (CORS-open, rate-limited, no key)
+
+  GET /assets?kind=&chain=&symbol=&verified=&limit=&offset=
+  GET /assets/{chain}/{address}
+  GET /search?q=<text>          # matches symbol / name / address / chain
+  GET /recent
+
+  kind is one of: token | protocol | network | wallet   (filter the catalog)
+
+Each asset is:
+  {
+    "id": "ethereum:native",
+    "kind": "token",
+    "chain": "ethereum",
+    "address": "native",
+    "symbol": "ETH",
+    "name": "Ethereum",
+    "rank": 2,
+    "verified": true,
+    "logo": { "png256": "...", "png128": "...", "png64": "...", "png32": "...", "svg": null }
+  }
+
+Examples:
+  https://icons.hirahul.xyz/api/v1/search?q=usdc
+  https://icons.hirahul.xyz/api/v1/assets?kind=wallet&limit=50
+  https://icons.hirahul.xyz/api/v1/assets?kind=protocol&limit=50
+  https://icons.hirahul.xyz/api/v1/assets/ethereum/native
+
+--------------------------------------------------------------------------------
+## 3. Recommended flow for an agent
+
+  1. Resolve the asset:  GET /api/v1/search?q=<symbol or name>
+     -> read its `chain` + `address` (and the ready-made `logo` URLs).
+  2. Render `logo.png64` (or build the CDN URL from the pattern above).
+  Do NOT guess contract addresses — resolve them via the API first.
+
+React helper (optional, if the npm package is installed):
+  import { getLogoUrl } from "@hirahul/crypto-logos";
+  const src = getLogoUrl({ chain: "dogecoin", address: "native", size: 64 });
+  // or: import { TokenIcon } from "@hirahul/crypto-logos/react";
+
+--------------------------------------------------------------------------------
+## Notes
+
+- EVM contract addresses are lowercased in URLs; Solana mints keep their case.
+- A missing logo returns HTTP 404 — render a placeholder fallback.
+- Free to use. Logos are the property of their respective projects/brands.
+- Explore the full library at https://icons.hirahul.xyz
