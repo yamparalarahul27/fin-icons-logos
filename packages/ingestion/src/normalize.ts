@@ -31,11 +31,17 @@ export async function fetchLogo(url: string): Promise<RawLogo | null> {
  * than cropped. Returns the encoded bytes per size so callers can persist them
  * wherever they like (local disk, R2, ...).
  */
-export async function renderLogo(raw: RawLogo): Promise<{ size: LogoSize; png: Buffer }[]> {
+export async function renderLogo(
+  raw: RawLogo,
+  opts: { density?: number } = {},
+): Promise<{ size: LogoSize; png: Buffer }[]> {
+  // `density` raises the rasterization DPI for vector (SVG) inputs so the PNGs
+  // stay crisp; it's ignored for raster sources.
+  const sharpOpts = opts.density ? { density: opts.density } : undefined;
   return Promise.all(
     LOGO_SIZES.map(async (size) => ({
       size,
-      png: await sharp(raw.bytes)
+      png: await sharp(raw.bytes, sharpOpts)
         .resize(size, size, {
           fit: "contain",
           background: { r: 0, g: 0, b: 0, alpha: 0 },

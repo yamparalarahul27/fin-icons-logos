@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
+import DOMPurify from "isomorphic-dompurify";
 import sharp from "sharp";
 import { renderLogo, type RawLogo } from "@fin/ingestion/normalize";
 import { CHAINS, normalizeAddress, type LogoSet } from "@fin/shared";
@@ -6,11 +8,22 @@ import { getStorage } from "@/lib/storage";
 import { getOverrideRepo } from "@/lib/overrides-repo";
 import { requireAdmin } from "@/lib/admin-guard";
 
-// sharp is a native module — force the Node runtime, not the edge runtime.
+// sharp + DOMPurify are server-only — force the Node runtime, not the edge.
 export const runtime = "nodejs";
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
-const MIN_SOURCE_PX = 128; // matches the ingestion quality threshold
+const MIN_SOURCE_PX = 128; // raster floor; vectors are exempt (scalable)
+const SVG_DENSITY = 384; // rasterization DPI for crisp PNGs from SVG
+
+/** Strip scripts, event handlers, foreignObject, external refs from an SVG. */
+function sanitizeSvg(svg: string): string {
+  return DOMPurify.sanitize(svg, {
+    USE_PROFILES: { svg: true, svgFilters: true },
+  });
+}
+
+/** Short content hash → `?v=` so a re-upload busts the immutable CDN cache. */
+const versionOf = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex").slice(0, 10);
 
 export async function POST(req: Request) {
   const denied = await requireAdmin();
@@ -42,48 +55,87 @@ export async function POST(req: Request) {
   }
 
   const bytes = Buffer.from(await file.arrayBuffer());
-
-  let meta: sharp.Metadata;
-  try {
-    meta = await sharp(bytes).metadata();
-  } catch {
-    return NextResponse.json({ error: "Could not decode image." }, { status: 422 });
-  }
-  if (!meta.width || !meta.height) {
-    return NextResponse.json({ error: "Image has no dimensions." }, { status: 422 });
-  }
-  if (Math.max(meta.width, meta.height) < MIN_SOURCE_PX) {
-    return NextResponse.json(
-      { error: `Logo must be at least ${MIN_SOURCE_PX}px on its longest edge.` },
-      { status: 422 },
-    );
-  }
-
   const address = normalizeAddress(rawAddress, info.evm);
   const id = `${chain}:${address}`;
-
-  // Render to the canonical sizes, then persist each to the configured storage.
-  const raw: RawLogo = { bytes, width: meta.width, height: meta.height };
-  const rendered = await renderLogo(raw);
   const storage = getStorage();
-  await Promise.all(
-    rendered.map(({ size, png }) =>
-      storage.put(`${chain}/${address}/${size}.png`, png, "image/png"),
-    ),
-  );
+  const base = `${chain}/${address}`;
 
-  const url = (size: number) => storage.urlFor(`${chain}/${address}/${size}.png`);
-  const logo: LogoSet = {
-    png256: url(256),
-    png128: url(128),
-    png64: url(64),
-    png32: url(32),
-    svg: null,
-    sourceWidth: meta.width,
-    sourceHeight: meta.height,
-  };
+  // SVG by declared type or content sniff.
+  const isSvg =
+    file.type === "image/svg+xml" || /^\s*(<\?xml[^>]*>\s*)?<svg[\s>]/i.test(bytes.toString("utf8", 0, 512));
+
+  let logo: LogoSet;
+
+  if (isSvg) {
+    const clean = sanitizeSvg(bytes.toString("utf8"));
+    if (!/<svg[\s>]/i.test(clean)) {
+      return NextResponse.json({ error: "Not a valid SVG after sanitization." }, { status: 422 });
+    }
+    const svgBuf = Buffer.from(clean, "utf8");
+
+    // Native pixel size (from width/height or viewBox), best-effort.
+    let meta: sharp.Metadata | null = null;
+    try {
+      meta = await sharp(svgBuf).metadata();
+    } catch {
+      return NextResponse.json({ error: "Could not parse SVG." }, { status: 422 });
+    }
+
+    const raw: RawLogo = { bytes: svgBuf, width: meta.width ?? 0, height: meta.height ?? 0 };
+    const rendered = await renderLogo(raw, { density: SVG_DENSITY });
+    const version = versionOf(svgBuf);
+
+    await Promise.all([
+      storage.put(`${base}/logo.svg`, svgBuf, "image/svg+xml"),
+      ...rendered.map(({ size, png }) => storage.put(`${base}/${size}.png`, png, "image/png")),
+    ]);
+
+    const v = `?v=${version}`;
+    logo = {
+      png256: storage.urlFor(`${base}/256.png`) + v,
+      png128: storage.urlFor(`${base}/128.png`) + v,
+      png64: storage.urlFor(`${base}/64.png`) + v,
+      png32: storage.urlFor(`${base}/32.png`) + v,
+      svg: storage.urlFor(`${base}/logo.svg`) + v,
+      sourceWidth: meta.width ?? 0,
+      sourceHeight: meta.height ?? 0,
+    };
+  } else {
+    let meta: sharp.Metadata;
+    try {
+      meta = await sharp(bytes).metadata();
+    } catch {
+      return NextResponse.json({ error: "Could not decode image." }, { status: 422 });
+    }
+    if (!meta.width || !meta.height) {
+      return NextResponse.json({ error: "Image has no dimensions." }, { status: 422 });
+    }
+    if (Math.max(meta.width, meta.height) < MIN_SOURCE_PX) {
+      return NextResponse.json(
+        { error: `Logo must be at least ${MIN_SOURCE_PX}px on its longest edge.` },
+        { status: 422 },
+      );
+    }
+
+    const raw: RawLogo = { bytes, width: meta.width, height: meta.height };
+    const rendered = await renderLogo(raw);
+    const version = versionOf(bytes);
+    await Promise.all(
+      rendered.map(({ size, png }) => storage.put(`${base}/${size}.png`, png, "image/png")),
+    );
+
+    const v = `?v=${version}`;
+    logo = {
+      png256: storage.urlFor(`${base}/256.png`) + v,
+      png128: storage.urlFor(`${base}/128.png`) + v,
+      png64: storage.urlFor(`${base}/64.png`) + v,
+      png32: storage.urlFor(`${base}/32.png`) + v,
+      svg: null,
+      sourceWidth: meta.width,
+      sourceHeight: meta.height,
+    };
+  }
 
   await getOverrideRepo().set(id, logo);
-
   return NextResponse.json({ id, quality: "curated", logo, storage: storage.kind });
 }

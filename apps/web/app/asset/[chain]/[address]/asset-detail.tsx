@@ -115,11 +115,13 @@ export function AssetDetail({ asset }: { asset: CatalogAsset }) {
       <section className="mt-10">
         <h2 className="text-xs font-medium uppercase tracking-wider text-neutral-500">Use it</h2>
         <div className="mt-3 space-y-2">
+          {asset.logo.svg && <CopyRow label="SVG (vector)" value={asset.logo.svg} />}
           <CopyRow label="CDN URL (256px)" value={asset.logo.png256} />
           <CopyRow label="HTML" value={imgSnippet} />
         </div>
         <p className="mt-2 text-xs text-neutral-600">
-          Also available at 256 / 128 / 64 / 32 px — swap the size in the path.
+          {asset.logo.svg ? "Vector SVG, plus PNG at " : "Available at "}
+          256 / 128 / 64 / 32 px — swap the size in the path.
         </p>
       </section>
     </main>
