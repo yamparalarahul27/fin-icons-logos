@@ -38,6 +38,21 @@ By category:
 Token chains currently covered: ethereum, smartchain (BNB Smart Chain), polygon,
 solana, bitcoin, dogecoin.
 
+### Shape variants (rounded / semi-rounded badges)
+
+Any logo can be served as a shaped badge, generated on demand:
+
+  https://icons.hirahul.xyz/api/icon/{chain}/{address}?shape={rounded|semi-rounded}&size={16..512}
+
+  rounded      = full circle
+  semi-rounded = rounded-corner square (squircle)
+
+  https://icons.hirahul.xyz/api/icon/bitcoin/native?shape=rounded&size=128
+  https://icons.hirahul.xyz/api/icon/ethereum/0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48?shape=semi-rounded&size=64
+
+These work for every asset (a curated override is used when present, otherwise
+the badge is auto-generated from the base logo).
+
 --------------------------------------------------------------------------------
 ## 2. Discover assets — JSON API
 

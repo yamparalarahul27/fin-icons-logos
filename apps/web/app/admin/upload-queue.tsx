@@ -82,6 +82,9 @@ function AssetCard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  // Which slot the upload targets: the default logo, or a shape variant.
+  const [target, setTarget] = useState<"default" | "rounded" | "semi-rounded">("default");
+  const [note, setNote] = useState<string | null>(null);
   // Cache-buster so a freshly written override image replaces the old one.
   const [version, setVersion] = useState(0);
 
@@ -92,19 +95,26 @@ function AssetCard({
   async function upload(file: File) {
     setBusy(true);
     setError(null);
+    setNote(null);
     try {
       const body = new FormData();
       body.set("chain", asset.chain);
       body.set("address", asset.address);
       body.set("file", file);
+      if (target !== "default") body.set("variant", target);
 
       const res = await fetch("/api/admin/upload", { method: "POST", body });
-      const data = (await res.json()) as { logo?: LogoSet; error?: string };
-      if (!res.ok || !data.logo) {
-        throw new Error(data.error ?? `Upload failed (${res.status})`);
+      const data = (await res.json()) as { logo?: LogoSet; variant?: string; error?: string };
+      if (!res.ok) throw new Error(data.error ?? `Upload failed (${res.status})`);
+
+      if (target === "default") {
+        if (!data.logo) throw new Error("No logo returned.");
+        onUploaded(asset.id, data.logo);
+        setVersion((v) => v + 1);
+      } else {
+        setNote(`${target} variant updated ✓`);
+        setTimeout(() => setNote(null), 1800);
       }
-      onUploaded(asset.id, data.logo);
-      setVersion((v) => v + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -140,6 +150,18 @@ function AssetCard({
         </div>
       </div>
 
+      <select
+        value={target}
+        onChange={(e) => setTarget(e.target.value as typeof target)}
+        disabled={busy}
+        aria-label="Upload target"
+        className="rounded-lg border border-neutral-800 bg-neutral-900/60 px-2 py-1.5 text-xs text-neutral-300 outline-none transition-colors focus:border-neutral-600"
+      >
+        <option value="default">Default logo</option>
+        <option value="rounded">Rounded variant</option>
+        <option value="semi-rounded">Semi-rounded variant</option>
+      </select>
+
       <label
         onDragOver={(e) => {
           e.preventDefault();
@@ -169,9 +191,14 @@ function AssetCard({
             e.target.value = "";
           }}
         />
-        {busy ? "Uploading…" : "Drop a logo or click to upload an override"}
+        {busy
+          ? "Uploading…"
+          : target === "default"
+            ? "Drop a logo or click to upload an override"
+            : `Drop a ${target} variant image`}
       </label>
 
+      {note && <p className="text-xs text-emerald-400">{note}</p>}
       {error && <p className="text-xs text-red-400">{error}</p>}
     </li>
   );

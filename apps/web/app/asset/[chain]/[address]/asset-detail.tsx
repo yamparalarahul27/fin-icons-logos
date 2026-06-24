@@ -9,6 +9,9 @@ import { QuickSearch } from "../../../quick-search";
 /** The three visible sizes in the showcase ladder (px). 256 stays in the URL list. */
 const SHOWCASE = [128, 64, 32] as const;
 
+/** Public app origin, for absolute variant (icon) URLs other apps can hotlink. */
+const APP_ORIGIN = "https://icons.hirahul.xyz";
+
 export function AssetDetail({ asset }: { asset: CatalogAsset }) {
   const chainLabel = CHAINS[asset.chain as keyof typeof CHAINS]?.label ?? asset.chain;
   const isNative = asset.address === "native";
@@ -19,6 +22,9 @@ export function AssetDetail({ asset }: { asset: CatalogAsset }) {
     32: asset.logo.png32,
   };
   const imgSnippet = `<img src="${asset.logo.png64}" width="32" height="32" alt="${asset.symbol}" />`;
+  const iconBase = `${APP_ORIGIN}/api/icon/${asset.chain}/${encodeURIComponent(asset.address)}`;
+  const variantUrl = `${iconBase}?shape=rounded&size=256`;
+  const semiVariantUrl = `${iconBase}?shape=semi-rounded&size=256`;
 
   return (
     <main className="mx-auto min-h-screen max-w-3xl px-6 py-10">
@@ -118,10 +124,13 @@ export function AssetDetail({ asset }: { asset: CatalogAsset }) {
           {asset.logo.svg && <CopyRow label="SVG (vector)" value={asset.logo.svg} />}
           <CopyRow label="CDN URL (256px)" value={asset.logo.png256} />
           <CopyRow label="HTML" value={imgSnippet} />
+          <CopyRow label="Rounded variant" value={variantUrl} />
+          <CopyRow label="Semi-rounded variant" value={semiVariantUrl} />
         </div>
         <p className="mt-2 text-xs text-neutral-600">
-          {asset.logo.svg ? "Vector SVG, plus PNG at " : "Available at "}
-          256 / 128 / 64 / 32 px — swap the size in the path.
+          {asset.logo.svg ? "Vector SVG, plus PNG at " : "PNG at "}
+          256 / 128 / 64 / 32 px — swap the size in the path. Variants take any
+          <code className="mx-1 rounded bg-neutral-800 px-1">?size=</code>.
         </p>
       </section>
     </main>

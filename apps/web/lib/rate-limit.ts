@@ -34,6 +34,8 @@ function tierForPath(pathname: string): Tier | null {
   if (pathname.startsWith("/api/admin/")) return { name: "admin", limit: 60, windowMs: 60_000 };
   // Public JSON API (lands in a later phase) — anonymous IP tier.
   if (pathname.startsWith("/api/v1/")) return { name: "api", limit: 60, windowMs: 60_000 };
+  // On-the-fly variant icons — generous (image-like), but bounded against abuse.
+  if (pathname.startsWith("/api/icon/")) return { name: "icon", limit: 120, windowMs: 60_000 };
   return null;
 }
 
