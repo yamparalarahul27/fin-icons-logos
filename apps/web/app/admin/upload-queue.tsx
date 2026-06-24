@@ -1,7 +1,86 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CHAINS, resolveLogo, type Asset, type LogoQuality, type LogoSet } from "@fin/shared";
+
+type VariantTarget = "default" | "rounded" | "semi-rounded";
+const VARIANT_OPTIONS: { value: VariantTarget; label: string }[] = [
+  { value: "default", label: "Default logo" },
+  { value: "rounded", label: "Rounded variant" },
+  { value: "semi-rounded", label: "Semi-rounded variant" },
+];
+
+/** Custom dark-themed dropdown replacing the native <select> for the upload target. */
+function VariantDropdown({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: VariantTarget;
+  onChange: (v: VariantTarget) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+  const current = VARIANT_OPTIONS.find((o) => o.value === value) ?? VARIANT_OPTIONS[0]!;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900/60 px-3 py-1.5 text-xs text-neutral-300 transition-colors hover:border-neutral-600 focus:border-neutral-600 disabled:opacity-50"
+      >
+        {current.label}
+        <svg
+          className={`size-3.5 text-neutral-500 transition-transform ${open ? "rotate-180" : ""}`}
+          viewBox="0 0 20 20"
+          fill="none"
+          aria-hidden
+        >
+          <path d="m6 8 4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-neutral-800 bg-neutral-950/95 p-1 shadow-xl backdrop-blur"
+        >
+          {VARIANT_OPTIONS.map((o) => (
+            <li key={o.value}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={o.value === value}
+                onClick={() => {
+                  onChange(o.value);
+                  setOpen(false);
+                }}
+                className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-neutral-800 ${
+                  o.value === value ? "text-neutral-100" : "text-neutral-400"
+                }`}
+              >
+                {o.label}
+                {o.value === value && <span className="text-emerald-400">✓</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 const QUALITY_LABEL: Record<LogoQuality, string> = {
   missing: "Missing",
@@ -83,7 +162,7 @@ function AssetCard({
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   // Which slot the upload targets: the default logo, or a shape variant.
-  const [target, setTarget] = useState<"default" | "rounded" | "semi-rounded">("default");
+  const [target, setTarget] = useState<VariantTarget>("default");
   const [note, setNote] = useState<string | null>(null);
   // Cache-buster so a freshly written override image replaces the old one.
   const [version, setVersion] = useState(0);
@@ -91,6 +170,7 @@ function AssetCard({
   const logo = resolveLogo(asset);
   const previewSrc = logo ? `${logo.png128}${version ? `?v=${version}` : ""}` : null;
   const chainLabel = CHAINS[asset.chain]?.label ?? asset.chain;
+  const href = `/asset/${asset.chain}/${encodeURIComponent(asset.address)}`;
 
   async function upload(file: File) {
     setBusy(true);
@@ -124,7 +204,11 @@ function AssetCard({
 
   return (
     <li className="flex flex-col gap-3 rounded-xl border border-neutral-800 bg-neutral-900/50 p-4">
-      <div className="flex items-start gap-3">
+      {/* Header links to the public asset page (sizes, variants, fallback, …). */}
+      <Link
+        href={href}
+        className="group -m-1 flex items-start gap-3 rounded-lg p-1 transition-colors hover:bg-neutral-800/40"
+      >
         <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[repeating-conic-gradient(#262626_0_25%,#1a1a1a_0_50%)] bg-[length:14px_14px]">
           {previewSrc ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -135,11 +219,14 @@ function AssetCard({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate font-medium">{asset.symbol}</span>
+            <span className="truncate font-medium group-hover:text-white">{asset.symbol}</span>
             <span
               className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ring-1 ${QUALITY_STYLE[asset.quality]}`}
             >
               {QUALITY_LABEL[asset.quality]}
+            </span>
+            <span className="ml-auto text-xs text-neutral-600 opacity-0 transition-opacity group-hover:opacity-100">
+              View ↗
             </span>
           </div>
           <p className="truncate text-sm text-neutral-400">{asset.name}</p>
@@ -148,19 +235,9 @@ function AssetCard({
             {logo ? ` · src ${logo.sourceWidth}×${logo.sourceHeight}` : ""}
           </p>
         </div>
-      </div>
+      </Link>
 
-      <select
-        value={target}
-        onChange={(e) => setTarget(e.target.value as typeof target)}
-        disabled={busy}
-        aria-label="Upload target"
-        className="rounded-lg border border-neutral-800 bg-neutral-900/60 px-2 py-1.5 text-xs text-neutral-300 outline-none transition-colors focus:border-neutral-600"
-      >
-        <option value="default">Default logo</option>
-        <option value="rounded">Rounded variant</option>
-        <option value="semi-rounded">Semi-rounded variant</option>
-      </select>
+      <VariantDropdown value={target} onChange={setTarget} disabled={busy} />
 
       <label
         onDragOver={(e) => {
