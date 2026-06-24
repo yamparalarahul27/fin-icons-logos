@@ -7,6 +7,7 @@ import { CHAINS, normalizeAddress, type LogoSet } from "@fin/shared";
 import { getStorage } from "@/lib/storage";
 import { getOverrideRepo } from "@/lib/overrides-repo";
 import { requireAdmin } from "@/lib/admin-guard";
+import { isVariantShape } from "@/lib/variant";
 
 // sharp + DOMPurify are server-only — force the Node runtime, not the edge.
 export const runtime = "nodejs";
@@ -63,6 +64,37 @@ export async function POST(req: Request) {
   // SVG by declared type or content sniff.
   const isSvg =
     file.type === "image/svg+xml" || /^\s*(<\?xml[^>]*>\s*)?<svg[\s>]/i.test(bytes.toString("utf8", 0, 512));
+
+  // Shape-variant upload: store the admin's design as the source for that shape
+  // (the /api/icon endpoint serves + resizes it, overriding auto-generation).
+  const variant = String(form.get("variant") ?? "default");
+  if (variant !== "default") {
+    if (!isVariantShape(variant)) {
+      return NextResponse.json({ error: `Unknown variant "${variant}".` }, { status: 400 });
+    }
+    let src: Buffer;
+    try {
+      const input = isSvg
+        ? await sharp(Buffer.from(sanitizeSvg(bytes.toString("utf8")), "utf8"), {
+            density: SVG_DENSITY,
+          })
+        : sharp(bytes);
+      src = await input
+        .resize(256, 256, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+        .png()
+        .toBuffer();
+    } catch {
+      return NextResponse.json({ error: "Could not process variant image." }, { status: 422 });
+    }
+    const key = `${base}/variant-${variant}.png`;
+    await storage.put(key, src, "image/png");
+    return NextResponse.json({
+      id,
+      variant,
+      url: `${storage.urlFor(key)}?v=${versionOf(src)}`,
+      storage: storage.kind,
+    });
+  }
 
   let logo: LogoSet;
 
