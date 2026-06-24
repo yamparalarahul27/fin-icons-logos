@@ -53,10 +53,19 @@ export function LogoImg({
           backgroundRepeat: "no-repeat",
           backgroundPosition: "center",
         }}
-        className={`relative inline-flex select-none items-center justify-center ${className}`}
+        className={`relative inline-block select-none ${className}`}
       >
+        {/* Optically centered on the sticker body (its visual center is down-left
+            of the box center because the peeled corner cuts the top-right). */}
         <span
-          style={{ fontSize: Math.round(size * 0.4), textShadow: "0 1px 2px rgba(0,0,0,0.35)" }}
+          style={{
+            position: "absolute",
+            left: "45%",
+            top: "56%",
+            transform: "translate(-50%, -50%)",
+            fontSize: Math.round(size * 0.4),
+            textShadow: "0 1px 2px rgba(0,0,0,0.35)",
+          }}
           className="font-semibold leading-none text-white"
         >
           {(symbol.trim()[0] ?? "?").toUpperCase()}
