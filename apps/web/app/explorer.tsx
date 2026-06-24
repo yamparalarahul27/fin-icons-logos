@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CHAINS, kindOf, type AssetKind } from "@fin/shared";
 import type { CatalogAsset } from "../lib/manifest";
+import { LogoImg } from "./logo-img";
 
 /** How many cards to show before "Load more". */
 const PAGE_SIZE = 60;
@@ -271,13 +272,7 @@ function AssetCard({ asset }: { asset: CatalogAsset }) {
             title="Click to copy icon"
             className="grid size-16 cursor-copy place-items-center overflow-hidden rounded-xl bg-[repeating-conic-gradient(#262626_0_25%,#1a1a1a_0_50%)] bg-[length:14px_14px] transition-transform active:scale-95"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={asset.logo.png64}
-              alt={asset.symbol}
-              loading="lazy"
-              className="size-12 object-contain"
-            />
+            <LogoImg src={asset.logo.png64} symbol={asset.symbol} alt={asset.symbol} size={48} />
           </button>
 
           <div className="mt-3 flex items-center gap-1 text-center">

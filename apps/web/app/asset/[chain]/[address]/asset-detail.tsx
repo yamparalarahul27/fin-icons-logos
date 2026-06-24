@@ -5,6 +5,7 @@ import { useState } from "react";
 import { CHAINS } from "@fin/shared";
 import type { CatalogAsset } from "../../../../lib/manifest";
 import { QuickSearch } from "../../../quick-search";
+import { LogoImg } from "../../../logo-img";
 
 /** The three visible sizes in the showcase ladder (px). 256 stays in the URL list. */
 const SHOWCASE = [128, 64, 32] as const;
@@ -42,11 +43,12 @@ export function AssetDetail({ asset }: { asset: CatalogAsset }) {
       {/* Header */}
       <header className="mt-6 flex items-center gap-4">
         <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[repeating-conic-gradient(#262626_0_25%,#1a1a1a_0_50%)] bg-[length:18px_18px] p-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <LogoImg
             src={asset.logo.png256}
+            symbol={asset.symbol}
             alt={asset.symbol}
-            className="size-16 object-contain outline outline-1 -outline-offset-1 outline-white/10"
+            size={64}
+            className="outline outline-1 -outline-offset-1 outline-white/10"
           />
         </div>
         <div className="min-w-0">
@@ -82,20 +84,30 @@ export function AssetDetail({ asset }: { asset: CatalogAsset }) {
               className="flex flex-col items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-900/50 p-4"
             >
               <div className="flex h-32 items-center justify-center">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <LogoImg
                   src={sizeUrls[size]!}
+                  symbol={asset.symbol}
                   alt={`${asset.symbol} ${size}px`}
-                  width={size}
-                  height={size}
-                  style={{ width: size, height: size }}
-                  className="object-contain outline outline-1 -outline-offset-1 outline-white/10"
+                  size={size}
+                  className="outline outline-1 -outline-offset-1 outline-white/10"
                 />
               </div>
               <CopyChip label={`${size}px`} value={sizeUrls[size]!} />
             </li>
           ))}
         </ul>
+      </section>
+
+      {/* Fallback — shown so consumers know a graceful placeholder exists. */}
+      <section className="mt-10">
+        <h2 className="text-xs font-medium uppercase tracking-wider text-neutral-500">Fallback</h2>
+        <div className="mt-3 flex items-center gap-4 rounded-xl border border-neutral-800 bg-neutral-900/50 p-4">
+          <LogoImg src={null} symbol={asset.symbol} alt={`${asset.symbol} fallback`} size={56} />
+          <p className="text-sm text-neutral-400">
+            If the logo can&apos;t load, this tile — the asset&apos;s initial on a
+            deterministic gradient — is shown automatically, so the UI never breaks.
+          </p>
+        </div>
       </section>
 
       {/* Information */}
