@@ -104,8 +104,8 @@ export function AssetDetail({ asset }: { asset: CatalogAsset }) {
         <div className="mt-3 flex items-center gap-4 rounded-xl border border-neutral-800 bg-neutral-900/50 p-4">
           <LogoImg src={null} symbol={asset.symbol} alt={`${asset.symbol} fallback`} size={56} />
           <p className="text-sm text-neutral-400">
-            If the logo can&apos;t load, this tile — the asset&apos;s initial on a
-            deterministic gradient — is shown automatically, so the UI never breaks.
+            If the logo can&apos;t load, this sticker tile with the asset&apos;s
+            initial is shown automatically, so the UI never breaks.
           </p>
         </div>
       </section>
