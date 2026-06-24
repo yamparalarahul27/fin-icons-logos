@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { CHAINS } from "@fin/shared";
+import { LogoImg } from "./logo-img";
 
 interface Hit {
   id: string;
@@ -102,10 +103,7 @@ export function QuickSearch() {
                 className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-neutral-800/70"
               >
                 <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[repeating-conic-gradient(#262626_0_25%,#1a1a1a_0_50%)] bg-[length:10px_10px]">
-                  {h.logo && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={h.logo.png64} alt="" className="size-6 object-contain" />
-                  )}
+                  <LogoImg src={h.logo?.png64 ?? null} symbol={h.symbol} size={24} />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm text-neutral-100">{h.symbol}</span>
