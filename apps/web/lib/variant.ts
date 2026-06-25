@@ -59,3 +59,55 @@ export function resizeVariant(src: Buffer, size: number): Promise<Buffer> {
     .png()
     .toBuffer();
 }
+
+function circle(d: number): Buffer {
+  return Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${d}" height="${d}">` +
+      `<circle cx="${d / 2}" cy="${d / 2}" r="${d / 2}" fill="#fff"/></svg>`,
+  );
+}
+
+/**
+ * Composite a small circular badge (e.g. a network or issuer logo) into the
+ * bottom-right of a primary icon, with a transparent gap "cutout" so it reads as
+ * separate on any background. Used for "token + badge" composite variants.
+ */
+export async function makeBadged(primary: Buffer, badge: Buffer, size: number): Promise<Buffer> {
+  const badgeD = Math.round(size * 0.44);
+  const gap = Math.max(2, Math.round(size * 0.045));
+  const holeD = badgeD + gap * 2;
+  const margin = Math.round(size * 0.02);
+  const holeX = size - holeD - margin;
+  const holeY = size - holeD - margin;
+  const badgeX = holeX + gap;
+  const badgeY = holeY + gap;
+
+  const base = await sharp(primary)
+    .resize(size, size, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
+
+  // Punch a transparent circular gap where the badge will sit.
+  const hole = await sharp({
+    create: { width: holeD, height: holeD, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+  })
+    .composite([{ input: circle(holeD) }])
+    .png()
+    .toBuffer();
+  const holed = await sharp(base)
+    .composite([{ input: hole, left: holeX, top: holeY, blend: "dest-out" }])
+    .png()
+    .toBuffer();
+
+  // Circular badge.
+  const badgeImg = await sharp(badge)
+    .resize(badgeD, badgeD, { fit: "cover" })
+    .composite([{ input: circle(badgeD), blend: "dest-in" }])
+    .png()
+    .toBuffer();
+
+  return sharp(holed)
+    .composite([{ input: badgeImg, left: badgeX, top: badgeY }])
+    .png()
+    .toBuffer();
+}

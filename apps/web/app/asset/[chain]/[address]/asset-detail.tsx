@@ -23,9 +23,17 @@ export function AssetDetail({ asset }: { asset: CatalogAsset }) {
     32: asset.logo.png32,
   };
   const imgSnippet = `<img src="${asset.logo.png64}" width="32" height="32" alt="${asset.symbol}" />`;
-  const iconBase = `${APP_ORIGIN}/api/icon/${asset.chain}/${encodeURIComponent(asset.address)}`;
+  const iconPath = `/api/icon/${asset.chain}/${encodeURIComponent(asset.address)}`;
+  const iconBase = `${APP_ORIGIN}${iconPath}`;
   const variantUrl = `${iconBase}?shape=rounded&size=256`;
   const semiVariantUrl = `${iconBase}?shape=semi-rounded&size=256`;
+
+  // Composite badge demo: a token badged with its chain's native coin (always
+  // present). Not shown for native coins / protocols / networks / wallets.
+  const showBadge = !["protocol", "network", "wallet"].includes(asset.chain) && !isNative;
+  const badgeTarget = `${asset.chain}:native`;
+  const badgedPreview = `${iconPath}?shape=rounded&badge=${badgeTarget}&size=128`;
+  const badgedUrl = `${iconBase}?shape=rounded&badge=${badgeTarget}&size=256`;
 
   return (
     <main className="mx-auto min-h-screen max-w-3xl px-6 py-10">
@@ -97,6 +105,31 @@ export function AssetDetail({ asset }: { asset: CatalogAsset }) {
           ))}
         </ul>
       </section>
+
+      {/* Badge — composite variant (primary + corner badge). */}
+      {showBadge && (
+        <section className="mt-10">
+          <h2 className="text-xs font-medium uppercase tracking-wider text-neutral-500">Badge</h2>
+          <div className="mt-3 flex items-center gap-4 rounded-xl border border-neutral-800 bg-neutral-900/50 p-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={badgedPreview}
+              alt={`${asset.symbol} with a corner badge`}
+              width={64}
+              height={64}
+              className="size-16 shrink-0"
+            />
+            <p className="text-sm text-neutral-400">
+              Overlay any logo in the corner — here {asset.symbol} badged with its chain coin.
+              Set <code className="rounded bg-neutral-800 px-1">?badge=chain:address</code> to any
+              asset (token, network, or coin).
+            </p>
+          </div>
+          <div className="mt-2">
+            <CopyRow label="Badged (rounded)" value={badgedUrl} />
+          </div>
+        </section>
+      )}
 
       {/* Fallback — shown so consumers know a graceful placeholder exists. */}
       <section className="mt-10">
