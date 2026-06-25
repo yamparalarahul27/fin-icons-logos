@@ -53,6 +53,20 @@ Any logo can be served as a shaped badge, generated on demand:
 These work for every asset (a curated override is used when present, otherwise
 the badge is auto-generated from the base logo).
 
+### Corner badge (token + network/issuer)
+
+Composite a small second logo into the bottom-right corner with `badge={chain}:{address}`:
+
+  https://icons.hirahul.xyz/api/icon/{chain}/{address}?badge={chain}:{address}&size={16..512}
+
+  # USDC badged with USDT
+  https://icons.hirahul.xyz/api/icon/ethereum/0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48?badge=ethereum:0xdac17f958d2ee523a2206206994597c13d831ec7&size=128
+  # token with a network badge, on a rounded primary
+  https://icons.hirahul.xyz/api/icon/ethereum/0x.../?shape=rounded&badge=network:base
+
+`shape` and `badge` are each optional, but provide at least one. Use `native` as
+the address for L1 coins (e.g. badge=ethereum:native).
+
 --------------------------------------------------------------------------------
 ## 2. Discover assets — JSON API
 
